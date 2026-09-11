@@ -1,0 +1,400 @@
+/* =========================================================
+   Make Them Fall (in love)
+   参照: assets/reference_image/title.png
+         assets/reference_image/InputNickName.png
+   使用素材: assets/UI/title.png, assets/UI/button_Normal.png,
+             assets/font/DotGothic16/
+   ========================================================= */
+
+@font-face {
+  font-family: "DotGothic16";
+  src: url("../assets/font/DotGothic16/DotGothic16-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* ロゴから抽出したパレット */
+  --ink:        #000000;
+  --cream:      #FEF7E5;
+  --red:        #F5021F;
+  --red-deep:   #8E0F16;
+  --gold:       #E9B949;
+  --btn-label:  #14100E;
+
+  --stage-ratio: 16 / 9;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+  background: var(--ink);
+  /* レターボックス部分も黒で統一 */
+  color: var(--cream);
+  font-family: "DotGothic16", "MS Gothic", monospace;
+  overscroll-behavior: none;
+}
+
+body {
+  display: grid;
+  place-items: center;
+  min-height: 100dvh;
+}
+
+/* ---------------------------------------------------------
+   ステージ: 16:9 を維持したままビューポートに収める。
+   内部は cqw 単位なので、どの画面サイズでも比率が崩れない。
+   --------------------------------------------------------- */
+.stage {
+  position: relative;
+  width: min(100vw, calc(100dvh * 16 / 9));
+  aspect-ratio: var(--stage-ratio);
+  container-type: inline-size;
+
+  background: var(--ink);
+  overflow: hidden;
+}
+
+/* ---------------------------------------------------------
+   シーン
+   全シーンを重ねて置き、scenes.js 側の Web Animations API で
+   opacity をクロスフェードさせる。
+   --------------------------------------------------------- */
+.scene {
+  position: absolute;
+  inset: 0;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2.4cqw;
+
+  opacity: 1;
+}
+
+/* .scene の display:flex は UA の [hidden]{display:none} より詳細度が高いので、
+   明示的に打ち消さないと非表示シーンが重なって出てしまう。 */
+.scene[hidden] { display: none; }
+
+/* ---------------------------------------------------------
+   タイトルロゴ
+   素材が RGB（黒背景焼き込み）なので、黒地にそのまま置くと
+   境目なく馴染む。ドット絵なので pixelated で拡大する。
+   --------------------------------------------------------- */
+.logo {
+  display: block;
+  width: 74cqw;
+  height: auto;
+  image-rendering: pixelated;
+  user-select: none;
+  -webkit-user-drag: none;
+
+  animation: logo-in 900ms cubic-bezier(.2, .9, .3, 1.05) both;
+}
+
+/* ---------------------------------------------------------
+   言語選択ボタン
+   --------------------------------------------------------- */
+.lang-row {
+  display: flex;
+  gap: 9cqw;
+  animation: row-in 700ms 350ms cubic-bezier(.2, .9, .3, 1) both;
+}
+
+.btn {
+  /* 素材の実寸比を維持 (1691 x 436) */
+  width: 29cqw;
+  aspect-ratio: 1691 / 436;
+
+  background: url("../assets/UI/button_Normal.png") center / 100% 100% no-repeat;
+  image-rendering: pixelated;
+  border: 0;
+  padding: 0 0 0.4cqw;   /* 素材の下側の影ぶん、文字を光学的に中央へ */
+
+  font-family: inherit;
+  font-size: 3.1cqw;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  color: var(--btn-label);
+
+  cursor: pointer;
+  will-change: transform;
+  transition: transform 120ms ease, color 120ms ease;
+}
+
+/* drop-shadow は 1691x436 の pixelated 背景に対して毎フレーム
+   アルファ抽出＋ぼかしが走り、実測でレンダラが固まったため使わない。
+   transform と color だけのコンポジタ完結の演出にしてある。 */
+.btn:hover {
+  color: var(--red);
+  transform: translateY(-0.7cqw) scale(1.03);
+}
+
+.btn:active {
+  transform: translateY(0.2cqw) scale(1);
+}
+
+.btn:focus-visible {
+  outline: 0.45cqw solid var(--gold);
+  outline-offset: 0.8cqw;
+}
+
+/* 決定時のフラッシュ */
+.btn.is-chosen {
+  animation: chosen 420ms steps(2, jump-none) 3;
+}
+
+/* ---------------------------------------------------------
+   ニックネーム入力シーン
+   参照: assets/reference_image/InputNickName.png
+   --------------------------------------------------------- */
+.logo--small {
+  width: 42cqw;
+  margin-bottom: 1.6cqw;
+}
+
+.heading {
+  margin: 0;
+  font-size: 3.4cqw;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: 0.1em;
+  color: var(--cream);
+}
+
+/* ---------------------------------------------------------
+   ドット絵の枠（9スライス）
+
+   button_Normal.png は 1691x436。角の丸みは左端 147px / 右端 152px で
+   終わり、そこから先は縦断面が一定になる（アルファ解析で実測）。
+   background-size: 100% 100% で引き伸ばすと角のドットが歪むので、
+   border-image で「角は等倍・中央だけ横に伸ばす」形にしてある。
+
+   左右のボーダー幅は素材の縦横比 147/436 ≈ 0.34 を保つように
+   要素の高さから算出する。これで角が縦にも横にも歪まない。
+   --------------------------------------------------------- */
+.pixel-frame {
+  --frame-h: 5.4cqw;
+
+  height: var(--frame-h);
+  border-style: solid;
+  border-width: 0 calc(var(--frame-h) * 0.34);
+  border-image: url("../assets/UI/button_Normal.png") 0 152 0 147 fill stretch;
+  image-rendering: pixelated;
+
+  /* border-image は border-radius に切り取られない（ドット枠はそのまま出る）。
+     outline がこの丸みに沿ってくれるので、フォーカスリングが角丸になる。 */
+  border-radius: calc(var(--frame-h) / 2);
+
+  background: transparent;
+  padding: 0;
+  margin: 0;
+
+  font-family: inherit;
+  line-height: 1;
+  color: var(--btn-label);
+}
+
+.name-input {
+  --frame-h: 5.6cqw;
+  width: 40cqw;
+
+  /* border-image の左右キャップの内側が content box になる。
+     padding が無いと文字が丸みに食い込む。 */
+  padding: 0 1.2cqw;
+
+  font-size: 2.2cqw;
+  text-align: center;
+  letter-spacing: 0.06em;
+}
+
+.name-input::placeholder {
+  color: color-mix(in srgb, var(--btn-label) 42%, transparent);
+  letter-spacing: 0.02em;
+}
+
+/* 入場時に autofocus するので、リングは存在が分かる最小限の太さに留める */
+.name-input:focus {
+  outline: 0.22cqw solid color-mix(in srgb, var(--gold) 70%, transparent);
+  outline-offset: 0.9cqw;
+}
+
+.next-btn {
+  --frame-h: 5.2cqw;
+  width: 22cqw;
+  margin-top: 1.4cqw;
+
+  font-size: 2.8cqw;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  will-change: transform;
+  transition: transform 120ms ease, color 120ms ease, opacity 160ms ease;
+}
+
+.next-btn:hover:not(:disabled) {
+  color: var(--red);
+  transform: translateY(-0.6cqw) scale(1.03);
+}
+
+.next-btn:active:not(:disabled) {
+  transform: translateY(0.2cqw) scale(1);
+}
+
+.next-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.next-btn:focus-visible {
+  outline: 0.4cqw solid var(--gold);
+  outline-offset: 0.7cqw;
+}
+
+/* 言語選択へ戻る。中央の構図を邪魔しないよう左上に小さく置く */
+.back-btn {
+  position: absolute;
+  left: 2.6cqw;
+  top: 2.6cqw;
+
+  --frame-h: 4.2cqw;
+  width: 15cqw;
+
+  font-size: 1.9cqw;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  opacity: 0.72;
+  will-change: transform;
+  transition: transform 120ms ease, color 120ms ease, opacity 140ms ease;
+}
+
+.back-btn:hover {
+  opacity: 1;
+  color: var(--red);
+  transform: translateY(-0.4cqw) scale(1.03);
+}
+
+.back-btn:active {
+  transform: translateY(0.2cqw) scale(1);
+}
+
+.back-btn:focus-visible {
+  opacity: 1;
+  outline: 0.3cqw solid var(--gold);
+  outline-offset: 0.6cqw;
+}
+
+/* ---------------------------------------------------------
+   補助テキスト（未実装シーンの案内・状態表示）
+   --------------------------------------------------------- */
+.hint {
+  position: absolute;
+  bottom: 2.2cqw;
+  margin: 0;
+  font-size: 1.6cqw;
+  letter-spacing: 0.06em;
+  color: color-mix(in srgb, var(--cream) 55%, transparent);
+  text-align: center;
+  min-height: 2cqw;
+}
+
+/* ---------------------------------------------------------
+   Animations
+   --------------------------------------------------------- */
+@keyframes logo-in {
+  from { opacity: 0; transform: scale(.86) translateY(3cqw); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes row-in {
+  from { opacity: 0; transform: translateY(4cqw); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes chosen {
+  0%, 49%  { filter: brightness(1); }
+  50%, 100%{ filter: brightness(0) invert(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logo, .lang-row { animation: none; }
+  .btn, .btn.is-chosen { transition: none; animation: none; }
+  .btn:hover { transform: none; }
+  .next-btn, .back-btn { transition: none; }
+  .next-btn:hover:not(:disabled),
+  .back-btn:hover { transform: none; }
+}
+
+/* ---------------------------------------------------------
+   BGM オン/オフ（右下・控えめ）
+   参照画像には無い要素なので、構図を邪魔しない濃度に留める。
+   --------------------------------------------------------- */
+.sound-toggle {
+  position: absolute;
+  right: 2.2cqw;
+  bottom: 2cqw;
+
+  width: 4.4cqw;
+  height: 4.4cqw;
+  display: grid;
+  place-items: center;
+
+  background: transparent;
+  border: 0.28cqw solid color-mix(in srgb, var(--cream) 30%, transparent);
+  border-radius: 50%;
+
+  font-family: inherit;
+  font-size: 2.2cqw;
+  line-height: 1;
+  color: color-mix(in srgb, var(--cream) 55%, transparent);
+
+  cursor: pointer;
+  transition: color 140ms ease, border-color 140ms ease, transform 140ms ease;
+}
+
+.sound-toggle:hover {
+  color: var(--cream);
+  border-color: var(--gold);
+  transform: scale(1.08);
+}
+
+.sound-toggle:focus-visible {
+  outline: 0.35cqw solid var(--gold);
+  outline-offset: 0.5cqw;
+}
+
+/* ミュート中は音符に斜線を重ねる */
+.sound-toggle[aria-pressed="true"] {
+  color: color-mix(in srgb, var(--cream) 30%, transparent);
+}
+
+.sound-toggle[aria-pressed="true"]::after {
+  content: "";
+  position: absolute;
+  /* 線そのものをボタンの中心に置いてから回す。
+     border-top だと「箱の上辺」に線が引かれるため、回転させると中心からずれる。 */
+  left: 16%;
+  right: 16%;
+  top: 50%;
+  height: 0.28cqw;
+  background: var(--red);
+  transform: translateY(-50%) rotate(-45deg);
+}
+
+/* スクリーンリーダー専用 */
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sound-toggle { transition: none; }
+  .sound-toggle:hover { transform: none; }
+}

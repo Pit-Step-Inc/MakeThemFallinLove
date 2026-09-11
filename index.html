@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Make Them Fall (in love)</title>
+<meta name="description" content="Make Them Fall (in love) — タイトル画面">
+<link rel="icon" href="assets/UI/title.png">
+<link rel="preload" as="font" type="font/ttf" href="assets/font/DotGothic16/DotGothic16-Regular.ttf" crossorigin>
+<link rel="stylesheet" href="src/style.css">
+</head>
+<body>
+
+  <main class="stage" id="stage">
+
+    <!-- ===== タイトル ===== -->
+    <section class="scene" id="scene-title">
+
+      <img class="logo"
+           src="assets/UI/title.png"
+           alt="Make Them Fall (in love)"
+           width="1774" height="887"
+           fetchpriority="high">
+
+      <nav class="lang-row" aria-label="Language / 言語">
+        <button type="button" class="btn" data-lang="en" lang="en">English</button>
+        <button type="button" class="btn" data-lang="ja" lang="ja">Japanese</button>
+      </nav>
+
+      <p class="hint" id="titleHint" role="status" aria-live="polite"></p>
+
+    </section>
+
+    <!-- ===== ニックネーム入力 ===== -->
+    <section class="scene" id="scene-nickname" hidden>
+
+      <button type="button" class="pixel-frame back-btn" id="backBtn"></button>
+
+      <img class="logo logo--small"
+           src="assets/UI/title.png"
+           alt="Make Them Fall (in love)"
+           width="1774" height="887">
+
+      <h1 class="heading" id="nameHeading"></h1>
+
+      <input class="pixel-frame name-input"
+             id="nameInput"
+             type="text"
+             maxlength="7"
+             autocomplete="off"
+             autocapitalize="off"
+             spellcheck="false"
+             aria-labelledby="nameHeading">
+
+      <button type="button" class="pixel-frame next-btn" id="nextBtn" disabled></button>
+
+      <p class="hint" id="nicknameHint" role="status" aria-live="polite"></p>
+
+    </section>
+
+    <!-- ===== 全シーン共通 ===== -->
+    <button type="button" class="sound-toggle" id="soundToggle"
+            aria-pressed="false" title="BGM (M)">
+      <span aria-hidden="true" id="soundIcon">&#9834;</span>
+      <span class="sr-only">BGM のオン / オフ</span>
+    </button>
+
+  </main>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>

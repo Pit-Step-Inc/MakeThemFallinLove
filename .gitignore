@@ -1,0 +1,181 @@
+# ==========================================================
+#  MakeThemFallinLove — .gitignore
+#  Browser game (web frontend + Blender / FL Studio assets)
+# ==========================================================
+
+# ---------- Node / package managers ----------
+node_modules/
+.pnp/
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+jspm_packages/
+web_modules/
+
+# ロックファイルは 1 つだけコミットする（使うものを下で除外解除）
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# ---------- Build output / bundlers ----------
+dist/
+dist-ssr/
+build/
+out/
+.output/
+.vercel/
+.netlify/
+.wrangler/
+.vite/
+.parcel-cache/
+.rollup.cache/
+.turbo/
+.swc/
+.rspack-cache/
+.webpack/
+*.tsbuildinfo
+.eslintcache
+.stylelintcache
+
+# ---------- Dev server / framework caches ----------
+.next/
+.nuxt/
+.astro/
+.svelte-kit/
+.docusaurus/
+.cache/
+.temp/
+.tmp/
+
+# ---------- Test / coverage ----------
+coverage/
+*.lcov
+.nyc_output/
+playwright-report/
+test-results/
+blob-report/
+.playwright/
+cypress/screenshots/
+cypress/videos/
+
+# ---------- Env / secrets ----------
+.env
+.env.*
+!.env.example
+!.env.sample
+*.pem
+*.key
+*.p12
+secrets.json
+serviceAccount*.json
+
+# ---------- Logs ----------
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# ---------- Editors / IDE ----------
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+.idea/
+*.swp
+*.swo
+*~
+.history/
+*.code-workspace
+
+# ---------- OS ----------
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+desktop.ini
+$RECYCLE.BIN/
+*.stackdump
+*.lnk
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+# Linux
+.directory
+.fuse_hidden*
+.nfs*
+
+# ---------- Claude Code / AI tooling ----------
+.claude/settings.local.json
+.claude/**/*.local.*
+CLAUDE.local.md
+
+# ==========================================================
+#  Game asset pipeline
+# ==========================================================
+
+# ---------- Blender ----------
+# .blend 本体はコミットする（LFS 推奨）。自動バックアップ類のみ無視
+*.blend1
+*.blend2
+*.blend[0-9]
+*.blend@
+blender_autosave/
+# Blender のレンダリング出力
+/renders/
+*.blend.orig
+
+# ---------- FL Studio / DAW ----------
+# .flp 本体はコミットする（LFS 推奨）。バックアップ・レンダリング中間物は無視
+*.flp.bak
+Backup/
+"FL Studio Backups/"
+*.asd
+*.reapeaks
+*.pkf
+*.rpp-bak
+
+# ---------- 中間・生成アセット ----------
+# 制作用の生素材は assets/ に集約済み（BGM / SE / UI / Catherine / Martin /
+# reference_image / blender）。ゲームに載せる最終物は public/ に書き出す運用。
+# 生成物をコミットしない場合は下を有効化：
+# public/assets/generated/
+*.psd~
+*.autosave.*
+.import/          # Godot 等の import キャッシュ
+*.tmp
+*.bak
+!assets/**/*.bak
+*.orig
+*.rej
+
+# ---------- 大容量の生素材（LFS を使わない場合はここで除外）----------
+# 必要に応じてコメントを外す
+# *.wav
+# *.aif
+# *.aiff
+# *.flac
+# src-assets/raw/
+
+# ---------- Misc ----------
+*.zip
+*.7z
+*.rar
+!assets/**/*.zip
+.vs/
+*.pid
+*.seed
+*.pid.lock
