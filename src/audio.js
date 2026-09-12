@@ -24,6 +24,15 @@
 export const TRACKS = {
   title:   "assets/BGM/Title",
   opening: "assets/BGM/Opening",
+  day:     "assets/BGM/Day",
+};
+
+/** 効果音。BGM と同じく拡張子なし */
+export const SE = {
+  confirm:  "assets/SE/retro_button_confirm",
+  cancel:   "assets/SE/retro_button_cancel",
+  dayStart: "assets/SE/day_start_jingle",
+  chatNext: "assets/SE/chat_next_chun",
 };
 
 /**
@@ -38,6 +47,69 @@ function pickFormats() {
   const opus = probe.canPlayType('audio/ogg; codecs="opus"');
   // Safari は ogg/Opus を再生できないので AAC を先に試す
   return opus ? ["ogg", "m4a"] : ["m4a", "ogg"];
+}
+
+/* ---------------------------------------------------------------
+   AudioContext とデコード済みバッファは BGM と SE で共有する。
+
+   context を分けると出力の遅延が揃わないうえ、ブラウザには同時に持てる
+   AudioContext の数に上限がある。バッファも共通の置き場にしておけば、
+   同じ素材を BGM と SE の両方から読んでも一度しか取りに行かない。
+   --------------------------------------------------------------- */
+
+let sharedCtx = null;
+
+/** AudioContext を1つだけ作って使い回す */
+export function audioContext() {
+  if (!sharedCtx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    sharedCtx = new AC();
+  }
+  return sharedCtx;
+}
+
+/** 同期的に呼ぶこと（ユーザー操作のコンテキストを失わないため） */
+function tryResume() {
+  const ctx = audioContext();
+  if (ctx.state !== "running") ctx.resume().catch(() => {});
+}
+
+/** base（拡張子なし）→ Promise<AudioBuffer> */
+const buffers = new Map();
+let formats = null;
+
+/** 対応フォーマットを順に試して、最初に読めたものを返す */
+async function fetchBuffer(base) {
+  formats ??= pickFormats();
+
+  const errors = [];
+  for (const ext of formats) {
+    const url = `${base}.${ext}`;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      const bytes = await res.arrayBuffer();
+      return await audioContext().decodeAudioData(bytes);
+    } catch (err) {
+      errors.push(`${ext}: ${err?.message ?? err}`);
+    }
+  }
+  throw new Error(`no playable format for ${base} (${errors.join(" / ")})`);
+}
+
+/**
+ * バッファを読む。バッファそのものではなく Promise をキャッシュするので、
+ * 同じ素材を同時に2箇所から呼んでも fetch は1回で済む。
+ */
+function loadBuffer(base) {
+  let pending = buffers.get(base);
+  if (!pending) {
+    pending = fetchBuffer(base);
+    // 失敗を握ったままにすると二度と読み直せなくなる
+    pending.catch(() => buffers.delete(base));
+    buffers.set(base, pending);
+  }
+  return pending;
 }
 
 const MUTE_KEY = "mtfil.muted";
@@ -66,9 +138,6 @@ function saveMuted(v) {
  * @param {Function} opts.onPlaying   実際に鳴り始めたとき
  */
 export function createBgm({ volume = 0.55, fadeIn = 1800, onBlocked, onPlaying } = {}) {
-  const buffers = new Map();
-  const formats = pickFormats();
-
   let ctx = null;
   let gain = null;
   let source = null;
@@ -81,8 +150,7 @@ export function createBgm({ volume = 0.55, fadeIn = 1800, onBlocked, onPlaying }
 
   function ensureCtx() {
     if (!ctx) {
-      const AC = window.AudioContext || window.webkitAudioContext;
-      ctx = new AC();
+      ctx = audioContext();
       gain = ctx.createGain();
       gain.gain.value = 0;
       gain.connect(ctx.destination);
@@ -90,7 +158,6 @@ export function createBgm({ volume = 0.55, fadeIn = 1800, onBlocked, onPlaying }
     return ctx;
   }
 
-  /** 対応フォーマットを順に試して、最初に読めたものを返す */
   /**
    * AudioContext が running になるのを待つ。
    *
@@ -115,31 +182,6 @@ export function createBgm({ volume = 0.55, fadeIn = 1800, onBlocked, onPlaying }
       const timer = setTimeout(() => finish(ctx.state === "running"), ms);
       ctx.addEventListener("statechange", onChange);
     });
-  }
-
-  /** 同期的に呼ぶこと（ユーザー操作のコンテキストを失わないため） */
-  function tryResume() {
-    if (ctx.state !== "running") ctx.resume().catch(() => {});
-  }
-
-  async function loadBuffer(base) {
-    if (buffers.has(base)) return buffers.get(base);
-
-    const errors = [];
-    for (const ext of formats) {
-      const url = `${base}.${ext}`;
-      try {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-        const bytes = await res.arrayBuffer();
-        const buf = await ensureCtx().decodeAudioData(bytes);
-        buffers.set(base, buf);
-        return buf;
-      } catch (err) {
-        errors.push(`${ext}: ${err?.message ?? err}`);
-      }
-    }
-    throw new Error(`no playable format for ${base} (${errors.join(" / ")})`);
   }
 
   /** GainNode を滑らかに動かす。setValueAtTime を挟まないとプチノイズが出る */
@@ -253,6 +295,72 @@ export function createBgm({ volume = 0.55, fadeIn = 1800, onBlocked, onPlaying }
 
     get muted() {
       return muted;
+    },
+  };
+}
+
+/**
+ * SE プレイヤー
+ *
+ * BGM と同じ AudioContext・同じバッファ置き場に載せる（audioContext の
+ * コメント参照）。
+ *
+ * BGM のミュートには連動しない。画面右下のトグルは「BGM のオン / オフ」
+ * であって、SE まで止めるとボタンの手応えが消えるため。
+ * だからこのトグル自体には SE を付けていない（消音したのに音が鳴る、
+ * という一番紛らわしい組み合わせになる）。
+ */
+export function createSfx({ volume = 0.6 } = {}) {
+  let gain = null;
+
+  function ensureGain() {
+    if (!gain) {
+      const ctx = audioContext();
+      gain = ctx.createGain();
+      gain.gain.value = volume;
+      gain.connect(ctx.destination);
+    }
+    return gain;
+  }
+
+  return {
+    /**
+     * 先に読んでデコードまで済ませておく。
+     * 最初の1回だけ鳴らない、を防ぐためのもの。
+     */
+    preload(...names) {
+      ensureGain();
+      return Promise.all(
+        names.map((n) =>
+          loadBuffer(SE[n]).catch((err) => console.error("[sfx] failed to load", n, err))
+        )
+      );
+    },
+
+    /**
+     * 鳴らす。押した瞬間に返せるよう待たせない。
+     * 読み込みが終わっていなければ、終わり次第そのまま鳴る。
+     */
+    play(name) {
+      const base = SE[name];
+      if (!base) {
+        console.error("[sfx] unknown sfx:", name);
+        return;
+      }
+
+      // クリックのハンドラから同期的に呼ぶ必要がある
+      tryResume();
+
+      const out = ensureGain();
+      loadBuffer(base)
+        .then((buf) => {
+          // BufferSource は使い捨て。鳴らすたびに作る
+          const src = audioContext().createBufferSource();
+          src.buffer = buf;
+          src.connect(out);
+          src.start(0);
+        })
+        .catch((err) => console.error("[sfx]", name, err));
     },
   };
 }

@@ -58,6 +58,53 @@
 
     </section>
 
+    <!-- ===== 日付切り替え ===== -->
+    <!-- 参照: assets/reference_image/DayChange.png -->
+    <section class="scene scene--day" id="scene-day" hidden>
+
+      <img class="logo logo--day"
+           src="assets/UI/title.png"
+           alt="Make Them Fall (in love)"
+           width="1774" height="887">
+
+      <p class="day-label" id="dayLabel" role="status" aria-live="polite"></p>
+
+      <!-- 歩きは assets/blender/develop/ の PNG シート + JSON。
+           解像度はコマの原寸で、表示サイズは CSS 側で決める。 -->
+      <canvas class="walker walker--martin"    id="martinWalk"    aria-hidden="true"></canvas>
+      <canvas class="walker walker--catherine" id="catherineWalk" aria-hidden="true"></canvas>
+
+      <p class="hint" id="dayHint" role="status" aria-live="polite"></p>
+
+    </section>
+
+    <!-- ===== オープニング（渋谷・1日目冒頭の会話） ===== -->
+    <!-- 参照: assets/reference_image/opening_001.png, opening_002.png -->
+    <section class="scene scene--opening" id="scene-opening" hidden>
+
+      <img class="backdrop"
+           src="assets/background/background_shibuya_001.png"
+           alt=""
+           width="1672" height="941">
+
+      <!-- 口パクは martin_talk03 / catherine_talk01。
+           原寸のまま canvas に描いて CSS で縮める。
+           Catherine は合流するまで出さない -->
+      <canvas class="portrait portrait--martin"    id="openingMartin"    aria-hidden="true"></canvas>
+      <canvas class="portrait portrait--catherine" id="openingCatherine" aria-hidden="true" hidden></canvas>
+
+      <!-- 台詞は1文字ずつ出す。未表示ぶんも DOM には置いたまま透明にして、
+           途中で行数が変わって吹き出しの中で文字が飛び跳ねないようにする -->
+      <div class="bubble bubble--martin" id="bubbleMartin" hidden>
+        <p class="bubble-text"><span id="shownMartin"></span><span class="bubble-rest" id="restMartin"></span></p>
+      </div>
+
+      <div class="bubble bubble--catherine" id="bubbleCatherine" hidden>
+        <p class="bubble-text"><span id="shownCatherine"></span><span class="bubble-rest" id="restCatherine"></span></p>
+      </div>
+
+    </section>
+
     <!-- ===== 全シーン共通 ===== -->
     <button type="button" class="sound-toggle" id="soundToggle"
             aria-pressed="false" title="BGM (M)">

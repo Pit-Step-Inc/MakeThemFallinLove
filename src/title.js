@@ -32,9 +32,10 @@ function saveLang(lang) {
 /**
  * @param {object}   opts
  * @param {"en"|"ja"} opts.lang    初期フォーカスに使う言語
+ * @param {object}   opts.sfx      audio.js の createSfx()
  * @param {Function} opts.onDone   (lang) => void
  */
-export function initTitle({ lang, onDone }) {
+export function initTitle({ lang, sfx, onDone }) {
   const scene   = document.getElementById("scene-title");
   const hintEl  = document.getElementById("titleHint");
   const buttons = /** @type {HTMLButtonElement[]} */ ([...scene.querySelectorAll(".btn")]);
@@ -54,6 +55,8 @@ export function initTitle({ lang, onDone }) {
   function choose(btn) {
     if (locked) return;
     locked = true;
+
+    sfx?.play("confirm");
 
     const chosen = btn.dataset.lang;
     saveLang(chosen);

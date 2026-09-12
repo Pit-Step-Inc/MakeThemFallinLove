@@ -288,6 +288,228 @@ body {
 }
 
 /* ---------------------------------------------------------
+   日付切り替えシーン
+   参照: assets/reference_image/DayChange.png
+
+   寸法は参照画像（730x408）から実測して cqw に直したもの。
+   ロゴは上・日付は中央・2人は左右の下寄せで、他シーンの
+   flex 中央寄せとは組み方が違うので絶対配置にしてある。
+
+   中央寄せに transform を使わないのは、.logo が logo-in で
+   transform を持っていて打ち消し合うため。負の margin で寄せる。
+   --------------------------------------------------------- */
+.scene--day {
+  display: block;
+}
+
+.logo--day {
+  position: absolute;
+  top: 3.8cqw;
+  left: 50%;
+  width: 29cqw;
+  margin-left: -14.5cqw;
+}
+
+.day-label {
+  position: absolute;
+  top: 25.6cqw;
+  left: 0;
+  right: 0;
+
+  margin: 0;
+  text-align: center;
+  font-size: 6.2cqw;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  color: #FFFFFF;
+
+  animation: day-in 700ms 250ms ease both;
+}
+
+/* ---------------------------------------------------------
+   歩きアニメーション（Martin / Catherine）
+
+   コマの原寸は Martin 268x656・Catherine 326x746 で、
+   どちらも同じ倍率（1px ≒ 0.0483cqw）で置いてある。
+   身長差はそのまま出るのが正しい。
+
+   足元は共通の地面（下から約 3.2cqw）に乗る。コマの下端と靴底の
+   すき間が Martin 6px・Catherine 5px しかないので、bottom は同値でよい。
+   --------------------------------------------------------- */
+.walker {
+  position: absolute;
+  bottom: 2.9cqw;
+
+  image-rendering: pixelated;
+  user-select: none;
+  -webkit-user-drag: none;
+
+  animation: walker-in 800ms ease both;
+}
+
+.walker--martin {
+  left: 19.6cqw;
+  width: 12.9cqw;
+  height: 31.7cqw;
+  margin-left: -6.45cqw;
+}
+
+.walker--catherine {
+  left: 81.2cqw;
+  width: 15.8cqw;
+  height: 36.1cqw;
+  margin-left: -7.9cqw;
+}
+
+/* .hint は flex シーンの中では自然に中央に来るが、
+   このシーンは display:block なので左右を明示する */
+.scene--day .hint {
+  left: 0;
+  right: 0;
+}
+
+@keyframes day-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes walker-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .day-label, .walker { animation: none; }
+}
+
+/* ---------------------------------------------------------
+   オープニングシーン（渋谷・Martin の独白）
+   参照: assets/reference_image/opening_001.png
+
+   寸法は参照画像（951x535）から実測して cqw に直したもの。
+   Martin は martin_talk03 のコマ（500x726）を 0.470 倍で置く実測値で、
+   吹き出しは素材の青いリングの位置をアンカーにして逆算してある。
+   --------------------------------------------------------- */
+.scene--opening {
+  display: block;
+}
+
+/* 背景は 1672x941（16:9）。ステージと同比なので cover でほぼ切れない */
+.backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* 立ち絵。足元ではなく画面下端で切るので bottom 基準。
+   倍率はコマ原寸に対して Martin 0.470 / Catherine 0.412（いずれも実測）*/
+.portrait {
+  position: absolute;
+  image-rendering: pixelated;
+  user-select: none;
+  -webkit-user-drag: none;
+
+  animation: portrait-in 600ms ease both;
+}
+
+.portrait--martin {
+  left: 6.1cqw;
+  bottom: 0.4cqw;
+  width: 24.7cqw;
+  height: 35.9cqw;
+  animation-delay: 120ms;
+}
+
+.portrait--catherine {
+  left: 72.35cqw;
+  bottom: -0.3cqw;
+  width: 24.82cqw;
+  height: 31.97cqw;
+}
+
+/* ---------------------------------------------------------
+   吹き出し
+
+   SpeechBubble_blue.png は 2142x476（比 4.50）だが、2行を収めるため
+   参照画像では縦に約 2割 伸ばしてある（比 3.72）。ドット絵なので
+   border-image の9スライスではなく、そのまま引き伸ばして使う
+   （しっぽが左上にあり、9スライスの角に収まらない）。
+   --------------------------------------------------------- */
+.bubble {
+  position: absolute;
+  width: 37.76cqw;
+
+  display: grid;
+  place-items: center;
+  /* 左右は角の丸みとしっぽの付け根を避ける幅 */
+  padding: 0.6cqw 3cqw 0.9cqw;
+
+  background: center / 100% 100% no-repeat;
+  image-rendering: pixelated;
+
+  animation: bubble-in 420ms cubic-bezier(.2, .9, .3, 1.05) both;
+}
+
+/* .bubble の display:grid は UA の [hidden]{display:none} より強い */
+.bubble[hidden] { display: none; }
+
+/* Martin は左向きのしっぽ、Catherine は右向き。
+   それぞれ話者の側へ少し寄せてある（実測どおり） */
+.bubble--martin {
+  left: 29.65cqw;
+  top: 28.6cqw;
+  height: 10.16cqw;
+  background-image: url("../assets/UI/SpeechBubble_blue.png");
+  animation-delay: 320ms;
+}
+
+.bubble--catherine {
+  left: 31.34cqw;
+  top: 39.94cqw;
+  height: 9.33cqw;
+  background-image: url("../assets/UI/SpeechBubble_pink.png");
+}
+
+.bubble-text {
+  margin: 0;
+  text-align: center;
+  /* i18n 側の 
+ をそのまま改行にする。日本語は語の途中で折り返すと
+     読みにくいので、折り返し位置は文字列側で決める */
+  white-space: pre-line;
+
+  font-size: 1.62cqw;
+  line-height: 1.6;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+}
+
+/* まだ出していないぶん。display や visibility で消すと行数が変わって
+   文字が跳ねるので、場所は取ったまま色だけ透明にする
+   （読み上げにも残るので visibility: hidden より都合がよい）*/
+.bubble-rest {
+  color: transparent;
+}
+
+@keyframes portrait-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes bubble-in {
+  from { opacity: 0; transform: scale(.94); }
+  to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portrait, .bubble { animation: none; }
+}
+
+/* ---------------------------------------------------------
    補助テキスト（未実装シーンの案内・状態表示）
    --------------------------------------------------------- */
 .hint {
