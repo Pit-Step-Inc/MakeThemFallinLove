@@ -329,12 +329,18 @@ body {
 /* ---------------------------------------------------------
    歩きアニメーション（Martin / Catherine）
 
-   コマの原寸は Martin 268x656・Catherine 326x746 で、
-   どちらも同じ倍率（1px ≒ 0.0483cqw）で置いてある。
-   身長差はそのまま出るのが正しい。
+   コマの原寸は Martin 268x656・Catherine 326x746。
+   寸法・位置はすべて参照画像 DayChange.png（736x414 = 16:9）から
+   コマをテンプレートマッチングして実測した値。
 
-   足元は共通の地面（下から約 3.2cqw）に乗る。コマの下端と靴底の
-   すき間が Martin 6px・Catherine 5px しかないので、bottom は同値でよい。
+   2人の倍率は揃っていない。Catherine が 1px ≒ 0.0483cqw、
+   Martin が 1px ≒ 0.0533cqw（約 1.1 倍）で、原寸の身長差を打ち消して
+   画面上ではほぼ同じ背丈に見せている。引きの画で Martin が小さく
+   見えすぎるのを避けるため。
+
+   bottom も 2人で違う（Martin 4.0cqw / Catherine 2.9cqw）。
+   コマは靴底ぎりぎりで切られているので、この差はそのまま
+   立ち位置の奥行きの差として出る。
    --------------------------------------------------------- */
 .walker {
   position: absolute;
@@ -348,10 +354,11 @@ body {
 }
 
 .walker--martin {
-  left: 19.6cqw;
-  width: 12.9cqw;
-  height: 31.7cqw;
-  margin-left: -6.45cqw;
+  left: 22.6cqw;
+  width: 14.3cqw;
+  height: 35cqw;
+  margin-left: -7.15cqw;
+  bottom: 4cqw;
 }
 
 .walker--catherine {
@@ -389,6 +396,7 @@ body {
    寸法は参照画像（951x535）から実測して cqw に直したもの。
    Martin は martin_talk03 のコマ（500x726）を 0.470 倍で置く実測値で、
    吹き出しは素材の青いリングの位置をアンカーにして逆算してある。
+   ただし Martin の bottom だけは参照画像より 6.4cqw 沈めてある（下記）。
    --------------------------------------------------------- */
 .scene--opening {
   display: block;
@@ -416,9 +424,12 @@ body {
   animation: portrait-in 600ms ease both;
 }
 
+/* bottom は参照画像の実測値だと 0.4cqw だが、それだと引きすぎて表情が読めない。
+   6.4cqw 沈めて胸から下を画面外に落とし、顔を寄せて会話の距離感を近くしている。
+   幅・高さ・left は実測どおり（= 参照画像と同じ倍率・同じ横位置） */
 .portrait--martin {
   left: 6.1cqw;
-  bottom: 0.4cqw;
+  bottom: -6cqw;
   width: 24.7cqw;
   height: 35.9cqw;
   animation-delay: 120ms;
