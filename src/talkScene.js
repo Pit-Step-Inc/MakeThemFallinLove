@@ -5,7 +5,7 @@
  *
  * 背景の上に立ち絵と吹き出しを重ねるだけの画面。台詞は
  * [{ who, text, emotion? }, ...] を上から順に流す。**2箇所で使う**:
- *   - 1日目冒頭（台本は i18n の openingScript・背景は渋谷の1枚絵）
+ *   - 各日の冒頭（台本は i18n の openingScripts・背景は街の1枚絵。どちらも main.js が渡す）
  *   - 生成された次の展開（台本も背景も OpenAI から来る／tools/story.py）
  *
  * 吹き出しは話者ごとに1つずつ固定位置にあり、**直前の発言が残る**。
@@ -24,7 +24,6 @@
  * そこに Martin のキャンバスや吹き出しを置かずに済む。
  */
 
-import { t } from "./i18n.js";
 import { loadClip, createSpriteAnim } from "./spriteAnim.js";
 
 const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)");
@@ -89,6 +88,8 @@ export function initTalkScene({ lang, sfx, sceneId, prefix, catherineFromStart =
       bubble: el("Bubble" + spec.suffix),
       shown:  el("Shown" + spec.suffix),
       rest:   el("Rest" + spec.suffix),
+      // 名札。喋っていなくても出しっぱなしで、立ち絵と一緒に出入りする
+      nameTag: el("Name" + spec.suffix),
       onStage: spec.onStage,
       anim: null,
     };
@@ -161,6 +162,7 @@ export function initTalkScene({ lang, sfx, sceneId, prefix, catherineFromStart =
     if (!c.onStage) {
       c.onStage = true;
       c.canvas.hidden = false;
+      if (c.nameTag) c.nameTag.hidden = false;
     }
 
     // 表情が指定されていればそのクリップへ。無ければ既定の口パクに戻す
@@ -235,8 +237,8 @@ export function initTalkScene({ lang, sfx, sceneId, prefix, catherineFromStart =
     },
 
     /**
-     * 背景を差し替える（生成された展開で使う）。
-     * 冒頭の会話のように背景を HTML に直接書いてある画面では何もしない。
+     * 背景を差し替える。冒頭は日ごとの街、次の展開は生成された1枚。
+     * 背景を持たない画面（ラストシーン）では何もしない。
      */
     setBackdrop(src) {
       if (!backdrop) return;
@@ -247,10 +249,10 @@ export function initTalkScene({ lang, sfx, sceneId, prefix, catherineFromStart =
     /**
      * 素材を揃えて頭から組み直す。showScene() の前に呼ぶこと。
      * @param {{who: string, text: string, emotion?: string}[]} [lines]
-     *        省略すると i18n の openingScript を使う
+     *        省略すると台詞なし（背景と立ち絵だけ出す）
      */
     prepare(lines) {
-      script = lines ?? t(uiLang).openingScript;
+      script = lines ?? [];
       index = -1;
       finished = false;
       clearInterval(timer);
@@ -266,6 +268,7 @@ export function initTalkScene({ lang, sfx, sceneId, prefix, catherineFromStart =
       if (cast.catherine) {
         cast.catherine.onStage = catherineFromStart;
         cast.catherine.canvas.hidden = !catherineFromStart;
+        if (cast.catherine.nameTag) cast.catherine.nameTag.hidden = !catherineFromStart;
       }
 
       sfx?.preload("chatNext");

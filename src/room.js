@@ -11,7 +11,7 @@
  *
  * 【カウントダウンは全員が揃ってから】
  * 会話を読み終えて Prompt 画面に着いた人が ready() を打つ。部屋の全員が
- * ready になった瞬間に 30 秒が始まる（判断はサーバー側）。
+ * ready になった瞬間に制限時間が始まる（長さの判断はサーバー側）。
  * 揃わないときは**ホストだけ** forceStart() で先に始められる。
  *
  * 【参加した時点から鼓動を打つ】
@@ -226,6 +226,12 @@ export function createRoom({ roundSeconds = 30 } = {}) {
     heartbeat = setInterval(pulse, HEARTBEAT_MS);
     return data;
   }
+
+  // **タブが裏に回ると setInterval は最大1分まで間引かれる。**
+  // 戻ってきた瞬間に一度打ち直して、溜まった通知と残り時間を取り戻す
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") pulse();
+  });
 
   function goLocal(name) {
     console.warn("[room] offline mode");

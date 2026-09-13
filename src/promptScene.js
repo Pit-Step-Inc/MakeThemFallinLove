@@ -29,7 +29,7 @@ const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)");
 export const MAX_PROMPTS = 5;
 
 /** サーバーが居ないときの制限時間 秒（tools/rooms.py の ROUND_SECONDS と揃える） */
-export const TIME_LIMIT = 30;
+export const TIME_LIMIT = 60;
 
 /** 入力できる長さ。参照画像のプレースホルダに合わせてある */
 export const MAX_LENGTH = 30;
@@ -310,7 +310,7 @@ export function initPromptScene({ lang, sfx, room, onTimeUp }) {
       ticker = setInterval(tick, TICK_MS);
       poller = setInterval(poll, POLL_MS);
 
-      // 「着いたよ」の合図。全員が揃った瞬間にサーバーが 30 秒を切る
+      // 「着いたよ」の合図。全員が揃った瞬間にサーバーが制限時間を切る
       applyState(await room.ready());
     },
 

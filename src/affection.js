@@ -2,7 +2,8 @@
  * 親密度ゲージ
  *
  * 素材は assets/UI/affection.png。**枠の内側は抜けている**ので、
- * 下に敷いた帯を伸び縮みさせると、そこだけ溜まって見える。
+ * 下に敷いた帯を左端から右へ出していくと、そこだけ溜まって見える。
+ * 帯は内寸いっぱいに置いたまま右から削る（style.css の .affection__fill）。
  *
  * 通知やコードの札と同じく .scene の外・.stage 直下に置いてある。
  * Prompt 入力と、生成された次の展開の両方で同じ場所に出したいため。
@@ -29,7 +30,7 @@ export function createAffection() {
       const clamped = Math.max(0, Math.min(AFFINITY_MAX, Number(next) || 0));
       if (clamped === value) return;
       value = clamped;
-      // 帯は transform で伸ばす。幅を動かすとレイアウトが毎回走る
+      // 0〜1 で渡す。削る量は CSS 側で出す（幅を動かすとレイアウトが毎回走る）
       fill.style.setProperty("--affection", String(value / AFFINITY_MAX));
       root.setAttribute("aria-valuenow", String(value));
     },

@@ -673,7 +673,7 @@ body {
 
 /* ---------------------------------------------------------
    好感度ゲージ
-   素材の内側は抜けているので、下に敷いた帯が伸び縮みして見える
+   素材の内側は抜けているので、下に敷いた帯が左から溜まって見える
    --------------------------------------------------------- */
 .affection {
   position: absolute;
@@ -689,19 +689,31 @@ body {
 
 .affection[hidden] { display: none; }
 
-/* 枠の内側の帯。素材の内寸から実測した位置に置いてある */
+/* 枠の内側の帯。
+   位置は affection.png（2112x410）の抜けている部分を実測したもの。
+   バーの内側は x=413..2014 / y=139..267 なので、それを % に直してある。
+   ここを詰めすぎると帯が黒い枠線の上にはみ出す。
+
+   帯そのものは常に内寸いっぱいに置いておいて、**右から clip-path で削る**。
+   scaleX で伸ばすと右端の丸みまで一緒に潰れてしまうため。
+   幅を動かすわけではないので、レイアウトは走らない。 */
 .affection__fill {
   position: absolute;
-  left: 23.5%;
-  right: 4.5%;
-  top: 30%;
-  bottom: 30%;
+  left: 19.55%;
+  right: 4.59%;
+  top: 33.90%;
+  bottom: 34.63%;
 
-  transform-origin: left center;
-  transform: scaleX(var(--affection, 0));
+  /* 右端だけ枠の丸みに合わせる。左は首の付け根に隠れるので角のまま。
+     横の % は帯の幅・縦の % は帯の高さに掛かるので、素材の丸み
+     （横 51px / 縦は帯の半分）をそれぞれの比に直してある */
+  border-radius: 0 3.18% 3.18% 0 / 0 50% 50% 0;
+
+  /* 0 のときは全部削って空、1 のときは削らずに満杯 */
+  clip-path: inset(0 calc((1 - var(--affection, 0)) * 100%) 0 0);
   /* 下が濃いめの桃色。ハートと同じ2色なので、並べても浮かない */
   background: linear-gradient(180deg, var(--pink) 55%, var(--pink-deep) 55%);
-  transition: transform 400ms ease;
+  transition: clip-path 400ms ease;
 }
 
 /* ---------------------------------------------------------
@@ -1249,4 +1261,295 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .sound-toggle { transition: none; }
   .sound-toggle:hover { transform: none; }
+}
+
+/* ---------------------------------------------------------
+   回想（3日ぶんの思い出）
+   参照: assets/reference_image/Memory_001.png, Memory_002.png
+
+   背景・立ち絵・吹き出しは会話の画面と同じものを使い回す。
+   足すのは、その日に選ばれた Prompt の札だけ。
+   --------------------------------------------------------- */
+.scene--memory {
+  display: block;
+}
+
+/* 札は中央上。参照画像どおり、吹き出し（top 28.6cqw〜）のすぐ上に置く。
+   札の高さは 12.63cqw なので、14cqw から置けば下端が 26.6cqw で収まる */
+.memory-card {
+  position: absolute;
+  top: 14cqw;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+
+  animation: memory-card-in 520ms 200ms ease both;
+}
+
+/* 回想では押せないので、いいねのボタンは出さない（参照画像にも無い） */
+.memory-card .like-btn { display: none; }
+
+@keyframes memory-card-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(-0.8cqw); }
+  to   { opacity: 1; transform: translateX(-50%); }
+}
+
+/* ---------------------------------------------------------
+   エンディング（TOP PLAYERS → スタッフロール → The End）
+   参照: assets/reference_image/Ending_001.png, Ending_002.png
+
+   .scene--day と同じ構図。ロゴと歩く二人は出しっぱなしで、
+   真ん中だけ差し替える。
+   --------------------------------------------------------- */
+.scene--ending {
+  display: block;
+}
+
+/* 3つとも同じ枠に収める。左右は歩く二人を避ける幅 */
+.top-players,
+.credits,
+.end-label {
+  position: absolute;
+  left: 32cqw;
+  right: 32cqw;
+}
+
+.top-players {
+  top: 19.5cqw;
+  animation: day-in 700ms 250ms ease both;
+}
+
+.top-players__heading {
+  margin: 0 0 2cqw;
+  text-align: center;
+  font-size: 3.1cqw;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  color: #FFFFFF;
+}
+
+.top-players__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+
+  display: flex;
+  flex-direction: column;
+  gap: 1.3cqw;
+}
+
+/* 名前を中央に置いて、いいねの札をその右に添える。
+   .pixel-frame が高さと枠を持っているので、ここは中身の並びだけ */
+.top-player {
+  --frame-h: 4.6cqw;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.1cqw;
+
+  color: var(--ink);
+  font-size: 1.9cqw;
+  letter-spacing: 0.02em;
+}
+
+.top-player__name {
+  /* 長い名前でも札の中で折り返さない。7文字までなので溢れはしない */
+  white-space: nowrap;
+}
+
+/* 押せないので、いいねのアニメーションは付けない */
+.top-player__badge {
+  width: 3.1cqw;
+  height: 3.1cqw;
+  flex: 0 0 auto;
+  transition: none;
+}
+
+.top-player__likes {
+  min-width: 2.4cqw;
+  text-align: left;
+}
+
+/* ---- スタッフロール ---- */
+.credits {
+  top: 14cqw;
+  height: 26cqw;
+  /* 枠の外へ出た行は見せない。下から湧いて上へ抜けていく */
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 12%, #000 88%, transparent);
+  mask-image: linear-gradient(180deg, transparent, #000 12%, #000 88%, transparent);
+}
+
+.credits__roll {
+  /* 下端の外から始めて、全部が上へ抜けるまで動かす */
+  animation: credits-roll 32000ms linear both;
+}
+
+.credits__heading {
+  margin: 2.2cqw 0 1.1cqw;
+  text-align: center;
+  font-size: 2.1cqw;
+  line-height: 1.3;
+  letter-spacing: 0.06em;
+  color: var(--gold);
+}
+
+.credits__heading:first-child {
+  margin-top: 0;
+}
+
+.credits__line {
+  margin: 0 0 0.75cqw;
+  text-align: center;
+  font-size: 1.5cqw;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+  color: #FFFFFF;
+}
+
+@keyframes credits-roll {
+  from { transform: translateY(26cqw); }
+  to   { transform: translateY(-100%); }
+}
+
+/* ---- The End ---- */
+.end-label {
+  top: 25.6cqw;
+
+  margin: 0;
+  text-align: center;
+  font-size: 4.6cqw;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  color: #FFFFFF;
+
+  animation: day-in 900ms ease both;
+}
+
+.top-players[hidden],
+.credits[hidden],
+.end-label[hidden] { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .memory-card,
+  .top-players,
+  .end-label { animation: none; }
+  /* 流さずに頭から出す。hold() 側も短く待つ */
+  .credits__roll { animation: none; }
+}
+
+/* ---------------------------------------------------------
+   名札（Martin / Catherine）
+
+   誰が喋っているかに関わらず出しておく。立ち絵の足元、
+   吹き出し（Catherine のぶんが 49.3cqw で終わる）より下に置いて、
+   左下の通知・右下の BGM トグルのどちらにも掛からない高さにしてある。
+
+   横位置は立ち絵と同じ枠を取って中央寄せするので、
+   立ち絵の変種ごとに枠を合わせる。
+   --------------------------------------------------------- */
+.name-tag {
+  position: absolute;
+  bottom: 2.6cqw;
+  z-index: 1;
+
+  /* 幅は文字なり。立ち絵の幅を取ると黒帯だけが横に伸びてしまうので、
+     left は**立ち絵の中心**に置いて、そこから半分ぶん戻して中央に合わせる */
+  transform: translateX(-50%);
+
+  font-size: 1.5cqw;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  color: var(--cream);
+
+  /* 背景がどんな絵でも読めるように、薄い黒帯を敷く。
+     余白は em なので、文字の大きさを変えれば帯もついてくる */
+  padding: 0.34em 0.6em;
+  background: color-mix(in srgb, var(--ink) 62%, transparent);
+  border-radius: 0.34em;
+
+  user-select: none;
+  animation: portrait-in 600ms ease both;
+}
+
+.name-tag[hidden] { display: none; }
+
+/* left は立ち絵の中心（left + width / 2） */
+.name-tag--martin           { left: 18.45cqw; }
+.name-tag--catherine        { left: 84.76cqw; }
+.name-tag--catherine-story  { left: 84.76cqw; }
+.name-tag--catherine-last   { left: 75.93cqw; }
+
+/* ---------------------------------------------------------
+   最終親密度（ラストシーン）
+
+   ゲージは右上に出たままなので、数字はロゴの真下の空いている
+   ところに置く。吹き出し（top 39.5cqw〜）には掛からない。
+   --------------------------------------------------------- */
+.final-affinity {
+  position: absolute;
+  left: 9.28cqw;
+  top: 25.4cqw;
+  width: 33.08cqw;
+
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.9cqw;
+
+  animation: day-in 800ms 300ms ease both;
+}
+
+.final-affinity[hidden] { display: none; }
+
+.final-affinity__label {
+  font-size: 1.9cqw;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  color: color-mix(in srgb, var(--cream) 70%, transparent);
+}
+
+.final-affinity__value {
+  font-size: 5.2cqw;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  color: var(--pink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .name-tag, .final-affinity { animation: none; }
+}
+
+/* The End のあとだけ出る「タイトルへ」。ロゴと歩く二人の間に置く */
+.title-btn {
+  position: absolute;
+  left: 32cqw;
+  right: 32cqw;
+  top: 34cqw;
+
+  --frame-h: 5cqw;
+  font-size: 2.2cqw;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  will-change: transform;
+  transition: transform 120ms ease, color 120ms ease;
+
+  animation: day-in 700ms 400ms ease both;
+}
+
+.title-btn[hidden] { display: none; }
+
+.title-btn:hover  { color: var(--red); transform: translateY(-0.6cqw) scale(1.03); }
+.title-btn:active { transform: translateY(0.2cqw) scale(1); }
+
+.title-btn:focus-visible {
+  outline: 0.4cqw solid var(--gold);
+  outline-offset: 0.7cqw;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .title-btn { animation: none; transition: none; }
+  .title-btn:hover { transform: none; }
 }

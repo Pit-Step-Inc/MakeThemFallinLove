@@ -15,6 +15,7 @@ Catherineのプロフィール
 ・男らしく信用できる人が好き
 
 後に送られる次の展開のPromptと画像をみて、合計8ラリーの二人の会話を1文につき30文字以内でemotion(joy,anger,sadness,pleasure,surprised)と共に出力して。
+emotionは必ず emotion の行だけに書くこと。**conversation の行に (joy) のような感情を混ぜてはいけない**（そのまま吹き出しに出てしまう）。
 Martin_conversation_01:
 Martin_emotion_01:
 Catherine_conversation_01:
@@ -32,8 +33,11 @@ Martin_emotion_04:
 Catherine_conversation_04:
 Catherine_emotion_04:
 
-その後、Catherineの親密度がどれだけ上下したかの値を以下のような形式で送ること
-例)Affinity:+5, Affinity:-10
+その後、Catherineの親密度がどれだけ上下したかの値を以下のような形式で送ること。
+親密度は0〜100で、3日ぶんが積み上がっていく。
+上がる場合は +10 から +50 の範囲、下がる場合は -10 から -20 の範囲で決めること。
+Martinの行動がCatherineの好みに合っているほど大きく上げ、外しているほど大きく下げること。
+例)Affinity:+30, Affinity:-15
 
 最後にこのシーンに一番あうBGM(Excited,Funny,Romantic,Tense,Bittersweet)を選び以下の形式で送ること
 bgm:Funny

@@ -1,0 +1,37 @@
+# Render (https://render.com) にそのまま載せるための設定。
+#
+# 依存ライブラリは無い（tools/ は全部 Python 標準ライブラリ）ので、
+# ビルドは何もせず python を起動するだけでよい。
+#
+# 【インスタンスは1つのまま使うこと】
+# 部屋の状態は tools/rooms.py のプロセス内メモリに持っている。
+# インスタンスを増やすと、同じ部屋コードでも別のメモリを見ることになり、
+# 待ち合わせも生成結果も共有されない。増やすならそこを外部の
+# ストア（Redis など）に移してから。
+#
+# 【無料プランは使わないこと】
+# 無料プランは無アクセスが続くとスリープし、復帰時にメモリが消える。
+# 進行中の部屋が全部消えるので、最低でも Starter を使う。
+#
+# 【OPENAI_API_KEY は Render のダッシュボードで入れる】
+# sync: false にしてあるので、この YAML には鍵を書かない。
+# tools/story.py は .env より先に環境変数を見る。
+services:
+  - type: web
+    name: make-them-fall
+    runtime: python
+    plan: starter
+    region: singapore
+    buildCommand: ""
+    startCommand: python tools/serve.py
+    healthCheckPath: /index.html
+    # 部屋がメモリにあるので、勝手に増えないよう1本に固定する
+    numInstances: 1
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.0"
+      # 素材にキャッシュを効かせる（tools/serve.py の PRODUCTION）
+      - key: MTFIL_PRODUCTION
+        value: "1"
+      - key: OPENAI_API_KEY
+        sync: false
