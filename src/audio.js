@@ -25,6 +25,14 @@ export const TRACKS = {
   title:   "assets/BGM/Title",
   opening: "assets/BGM/Opening",
   day:     "assets/BGM/Day",
+
+  // 生成された展開で選ばれる5曲。名前は assets/Prompt/002.txt の選択肢と
+  // そろえてある（tools/story.py の BGM_CHOICES）
+  Excited:     "assets/BGM/Excited",
+  Funny:       "assets/BGM/Funny",
+  Romantic:    "assets/BGM/Romantic",
+  Tense:       "assets/BGM/Tense",
+  Bittersweet: "assets/BGM/Bittersweet",
 };
 
 /** 効果音。BGM と同じく拡張子なし */
@@ -33,6 +41,7 @@ export const SE = {
   cancel:   "assets/SE/retro_button_cancel",
   dayStart: "assets/SE/day_start_jingle",
   chatNext: "assets/SE/chat_next_chun",
+  sceneChange: "assets/SE/scene_transition_fuwan_fuwa_chakiin",
 };
 
 /**
@@ -313,6 +322,9 @@ export function createBgm({ volume = 0.55, fadeIn = 1800, onBlocked, onPlaying }
 export function createSfx({ volume = 0.6 } = {}) {
   let gain = null;
 
+  /** 鳴らしっぱなしの音。名前 → { source, stopped } */
+  const looping = new Map();
+
   function ensureGain() {
     if (!gain) {
       const ctx = audioContext();
@@ -361,6 +373,57 @@ export function createSfx({ volume = 0.6 } = {}) {
           src.start(0);
         })
         .catch((err) => console.error("[sfx]", name, err));
+    },
+
+    /**
+     * 切れ目なく鳴らし続ける。同じ名前を二度呼んでも1本しか鳴らない。
+     * 止めるのは stopLoop(name)。
+     */
+    loop(name) {
+      const base = SE[name];
+      if (!base) {
+        console.error("[sfx] unknown sfx:", name);
+        return;
+      }
+      if (looping.has(name)) return;
+
+      tryResume();
+
+      // 読み込みを待つあいだに stopLoop されることがあるので、
+      // 先に席を取っておいて、戻ってきたときに取り消されていないか見る
+      const entry = { source: null, stopped: false };
+      looping.set(name, entry);
+
+      const out = ensureGain();
+      loadBuffer(base)
+        .then((buf) => {
+          if (entry.stopped) return;
+          const src = audioContext().createBufferSource();
+          src.buffer = buf;
+          src.loop = true;
+          src.connect(out);
+          src.start(0);
+          entry.source = src;
+        })
+        .catch((err) => {
+          looping.delete(name);
+          console.error("[sfx]", name, err);
+        });
+    },
+
+    /** loop() で鳴らしているものを止める */
+    stopLoop(name) {
+      const entry = looping.get(name);
+      if (!entry) return;
+      entry.stopped = true;
+      looping.delete(name);
+      if (!entry.source) return;
+      try {
+        entry.source.stop();
+      } catch {
+        /* 既に停止済み */
+      }
+      entry.source.disconnect();
     },
   };
 }

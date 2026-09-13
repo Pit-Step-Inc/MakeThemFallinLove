@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-開発用の静的サーバー（Range リクエスト対応）
+開発用の静的サーバー（Range リクエスト対応 + ルーム API）
 
 `python -m http.server` は Range を無視して常に 200 + 全体を返すため、
 Chrome のメディアパイプラインが <audio> / <video> のロードを開始せず、
@@ -8,16 +8,28 @@ readyState=0 のまま固まる（BGM が鳴らない）。
 本番ホスト（GitHub Pages / Netlify / Vercel / nginx）は Range 対応なので、
 開発時だけこのサーバーを使えば挙動が揃う。
 
+`/api/` 以下は tools/rooms.py に回して、同じ部屋に居る人どうしで
+Prompt とカウントダウンを共有する。静的配信と同じプロセスに相乗りさせて
+あるので、これ1つ立てれば複数人で遊べる。
+
     python tools/serve.py [port]
 """
 
+import json
 import os
 import re
 import sys
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import urlsplit, parse_qs
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import rooms  # noqa: E402  同じフォルダに置いてある
 
 RANGE_RE = re.compile(r"^bytes=(\d*)-(\d*)$")
+
+#: この下に来たリクエストは静的ファイルではなくルーム API に回す
+API_PREFIX = "/api/"
 
 
 class RangeRequestHandler(SimpleHTTPRequestHandler):
@@ -30,6 +42,48 @@ class RangeRequestHandler(SimpleHTTPRequestHandler):
         # 開発中は素材の差し替えを即反映させたい
         self.send_header("Cache-Control", "no-cache")
         super().end_headers()
+
+    # -----------------------------------------------------------
+    #  ルーム API（tools/rooms.py）
+    #
+    #  同じ部屋に居る人どうしで Prompt とカウントダウンを共有する。
+    #  静的配信と同じプロセスに相乗りさせてあるので、
+    #  `python tools/serve.py` だけで複数人で遊べる。
+    # -----------------------------------------------------------
+
+    def do_GET(self):
+        if self.path.startswith(API_PREFIX):
+            return self._api("GET")
+        return super().do_GET()
+
+    def do_POST(self):
+        if self.path.startswith(API_PREFIX):
+            return self._api("POST")
+        self.send_error(405, "Method Not Allowed")
+
+    def _api(self, method):
+        parts = urlsplit(self.path)
+        body = None
+        if method == "POST":
+            length = int(self.headers.get("Content-Length") or 0)
+            raw = self.rfile.read(length) if length else b""
+            try:
+                body = json.loads(raw or b"{}")
+            except ValueError:
+                return self._json(400, {"error": "invalid json"})
+
+        status, obj = rooms.handle(method, parts.path, parse_qs(parts.query), body)
+        self._json(status, obj)
+
+    def _json(self, status, obj):
+        payload = json.dumps(obj).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(payload)))
+        # 状態はポーリングで取りに来るので、絶対にキャッシュさせない
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(payload)
 
     def send_head(self):
         range_header = self.headers.get("Range")
@@ -112,9 +166,14 @@ def main():
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
     handler = partial(RangeRequestHandler, directory=root)
-    with ThreadingHTTPServer(("127.0.0.1", port), handler) as httpd:
+    # 同じ LAN の別の端末からも入れるように 0.0.0.0 で待つ。
+    # 一人で遊ぶぶんには 127.0.0.1 のままで構わない
+    host = os.environ.get("MTFIL_HOST", "0.0.0.0")
+    with ThreadingHTTPServer((host, port), handler) as httpd:
         print(f"serving {root}")
         print(f"  http://127.0.0.1:{port}/")
+        if host == "0.0.0.0":
+            print(f"  （同じ LAN の他の端末からは http://<このPCのIP>:{port}/ ）")
         try:
             httpd.serve_forever()
         except KeyboardInterrupt:

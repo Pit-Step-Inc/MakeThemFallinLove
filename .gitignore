@@ -179,3 +179,10 @@ Backup/
 *.pid
 *.seed
 *.pid.lock
+
+#  Python（tools/ のスクリプト）
+__pycache__/
+*.py[cod]
+
+#  生成した背景（毎回作り直すので追跡しない）
+assets/generated/
