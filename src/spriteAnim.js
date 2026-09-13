@@ -21,13 +21,24 @@
 
 const CLIP_ROOT = "assets/blender/develop";
 
-function loadImage(src) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => resolve(img);
+/**
+ * 画像を1枚読む。
+ *
+ * **onload だけでは足りない。** onload は「読み終わった」であって
+ * 「デコードし終わった」ではない。連番コマの差し替えでは、そのせいで
+ * 最初の1枚が一瞬空になることが実際にあった（loadFrameClip 参照）。
+ * decode() まで待てば、使うときには必ず絵がある。
+ */
+async function loadImage(src) {
+  const img = new Image();
+  await new Promise((resolve, reject) => {
+    img.onload = resolve;
     img.onerror = () => reject(new Error(`failed to load ${src}`));
     img.src = src;
   });
+  // 対応していない環境（や失敗）でも読み込み自体は済んでいるので、そのまま返す
+  if (img.decode) await img.decode().catch(() => {});
+  return img;
 }
 
 /**
@@ -64,6 +75,22 @@ async function fetchClip(character, clip) {
 }
 
 /**
+ * 経過時間から何コマ目かを出す。
+ *
+ * **負の経過時間を 0 に切り上げるのが肝。** start() は
+ * performance.now() を開始時刻にするが、rAF が渡してくる now は
+ * **そのフレームの開始時刻**なので、start() を呼んだ瞬間より前に
+ * なることがある。そのまま計算すると剰余が負になり（JS の % は
+ * 負を返す）、frames[-1] が undefined、描画座標が NaN になって
+ * 1コマぶん何も描かれない。表情を切り替えた直後にだけ白く光るのは
+ * これが原因だった。
+ */
+function frameAt(now, startedAt, fps, length) {
+  const elapsed = Math.max(0, now - startedAt);
+  return Math.floor((elapsed / 1000) * fps) % length;
+}
+
+/**
  * クリップを <canvas> に流す。
  *
  * canvas の解像度はコマの原寸に合わせ、拡大縮小は CSS 側に任せる
@@ -85,8 +112,15 @@ export function createSpriteAnim(canvas, clip) {
   let startedAt = 0;
   let shown = -1;
 
+  /**
+   * コマを1枚描く。
+   *
+   * **番号が取れていないときは何もしない。** clearRect のあとに
+   * drawImage が座標 NaN で呼ばれると、例外も出ないまま何も描かれず、
+   * キャンバスが空のまま1コマ進んでしまう（＝背景が透けて白く光る）。
+   */
   function drawFrame(index) {
-    if (index === shown) return;
+    if (!Number.isFinite(index) || index === shown) return;
     shown = index;
     ctx.clearRect(0, 0, frameWidth, frameHeight);
     ctx.drawImage(
@@ -98,9 +132,7 @@ export function createSpriteAnim(canvas, clip) {
 
   function tick(now) {
     rafId = requestAnimationFrame(tick);
-    // 裏に回って復帰すると now が大きく飛ぶが、剰余で吸収される
-    const f = Math.floor(((now - startedAt) / 1000) * fps) % frames.length;
-    drawFrame(frames[f]);
+    drawFrame(frames[frameAt(now, startedAt, fps, frames.length)]);
   }
 
   return {
@@ -156,14 +188,8 @@ export async function loadFrameClip(dir, clip) {
     (_, i) => `${base}/${data.frameDir}/${data.framePattern.replace("%02d", pad(i))}`
   );
 
-  const images = await Promise.all(
-    urls.map(async (src) => {
-      const img = await loadImage(src);
-      // decode() まで待たないと、初回の差し替えで一瞬空になる
-      if (img.decode) await img.decode().catch(() => {});
-      return img;
-    })
-  );
+  // loadImage が decode() まで待つので、差し替えた瞬間に空になることはない
+  const images = await Promise.all(urls.map(loadImage));
 
   return { ...data, urls, images };
 }
@@ -190,8 +216,7 @@ export function createFrameAnim(el, clip) {
 
   function tick(now) {
     rafId = requestAnimationFrame(tick);
-    const f = Math.floor(((now - startedAt) / 1000) * fps) % frames.length;
-    drawFrame(frames[f]);
+    drawFrame(frames[frameAt(now, startedAt, fps, frames.length)]);
   }
 
   return {

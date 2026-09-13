@@ -31,6 +31,13 @@ RANGE_RE = re.compile(r"^bytes=(\d*)-(\d*)$")
 #: この下に来たリクエストは静的ファイルではなくルーム API に回す
 API_PREFIX = "/api/"
 
+#: 公開時だけキャッシュを許す拡張子。中身が変わらないものだけ
+CACHEABLE_EXT = {".png", ".jpg", ".jpeg", ".gif", ".webp",
+                 ".ogg", ".m4a", ".wav", ".mp3", ".ttf", ".woff", ".woff2"}
+
+#: Render などに載せたときは 1 になる。開発中と挙動を分けるのはキャッシュだけ
+PRODUCTION = bool(os.environ.get("MTFIL_PRODUCTION") or os.environ.get("RENDER"))
+
 
 class RangeRequestHandler(SimpleHTTPRequestHandler):
     """206 Partial Content を返せる SimpleHTTPRequestHandler"""
@@ -39,9 +46,30 @@ class RangeRequestHandler(SimpleHTTPRequestHandler):
 
     def end_headers(self):
         self.send_header("Accept-Ranges", "bytes")
-        # 開発中は素材の差し替えを即反映させたい
-        self.send_header("Cache-Control", "no-cache")
+        # _json は自前で no-store を付けるので、二重に出さない
+        if not getattr(self, "_cache_sent", False):
+            self.send_header("Cache-Control", self._cache_control())
         super().end_headers()
+
+    def _cache_control(self):
+        """
+        素材をキャッシュさせるかどうか。
+
+        開発中は差し替えを即反映させたいので常に no-cache。
+        公開時は**素材が 380MB 近くある**ので、毎回問い合わせに行かせると
+        読み込みが重くなる。中身が変わらないものだけ抱えさせて、
+        入れ物（html / js / css）は毎回確かめさせる。
+        """
+        if not PRODUCTION:
+            return "no-cache"
+        path = urlsplit(self.path).path
+        ext = os.path.splitext(path)[1].lower()
+        if path.startswith("/assets/generated/"):
+            # 部屋ごとに作られて部屋と一緒に消える。抱え込ませない
+            return "no-cache"
+        if ext in CACHEABLE_EXT:
+            return "public, max-age=3600"
+        return "no-cache"
 
     # -----------------------------------------------------------
     #  ルーム API（tools/rooms.py）
@@ -82,6 +110,7 @@ class RangeRequestHandler(SimpleHTTPRequestHandler):
         self.send_header("Content-Length", str(len(payload)))
         # 状態はポーリングで取りに来るので、絶対にキャッシュさせない
         self.send_header("Cache-Control", "no-store")
+        self._cache_sent = True
         self.end_headers()
         self.wfile.write(payload)
 
@@ -162,7 +191,8 @@ class _LimitedReader:
 
 
 def main():
-    port = int(sys.argv[1]) if len(sys.argv) > 1 else 5173
+    # Render などは待ち受けポートを $PORT で渡してくる
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else int(os.environ.get("PORT") or 5173)
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
     handler = partial(RangeRequestHandler, directory=root)

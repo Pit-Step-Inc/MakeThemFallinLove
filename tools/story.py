@@ -114,6 +114,35 @@ LINE_RE = re.compile(
 AFFINITY_RE = re.compile(r"Affinity\s*[:：]\s*([+\-]?\d+)", re.IGNORECASE)
 BGM_RE = re.compile(r"bgm\s*[:：]\s*([A-Za-z]+)", re.IGNORECASE)
 
+#: 1回ぶんの親密度の増減の幅。assets/Prompt/002.txt で同じ範囲を指示しているが、
+#: 外れた値が返ってくることがあるのでこちらでも収める。
+#: 0（Affinity 行が無かった＝増減なし）はそのまま通す
+AFFINITY_UP = (10, 50)
+AFFINITY_DOWN = (10, 20)
+
+
+def _clamp_affinity(value):
+    """増減を 002.txt で指示した幅に収める。0 は「増減なし」としてそのまま"""
+    if value > 0:
+        return min(max(value, AFFINITY_UP[0]), AFFINITY_UP[1])
+    if value < 0:
+        return -min(max(-value, AFFINITY_DOWN[0]), AFFINITY_DOWN[1])
+    return 0
+
+
+#: 台詞に混ざってくる感情の書き置き。`うわっ…最悪だ(sadness)` のように
+#: emotion を会話の側にも付けてくることがあるので、吹き出しに出す前に落とす。
+#: 丸括弧・角括弧・隅付き括弧の全角半角と、前に付く「emotion:」まで拾う
+EMOTION_TAG_RE = re.compile(
+    r"[\(（\[［【]\s*(?:emotion\s*[:：]\s*)?(?:%s)\s*[\)）\]］】]" % "|".join(EMOTIONS),
+    re.IGNORECASE,
+)
+
+
+def _strip_emotion(text):
+    """会話文から感情の書き置きを取り除く。空白の潰れも直す"""
+    return re.sub(r"\s{2,}", " ", EMOTION_TAG_RE.sub("", text)).strip()
+
 
 def _clean(value):
     """前後の飾りを落とす。値が次の行に来ることもあるので空も許す"""
@@ -150,7 +179,8 @@ def parse_script(text):
     lines = []
     for (num, who) in sorted(slots, key=lambda k: (k[0], 0 if k[1] == "Martin" else 1)):
         slot = slots[(num, who)]
-        text_value = slot.get("conversation", "")
+        # emotion は表情の切り替えにだけ使う。吹き出しには出さない
+        text_value = _strip_emotion(slot.get("conversation", ""))
         if not text_value:
             continue
         emotion = slot.get("emotion", "").lower()
@@ -169,7 +199,7 @@ def parse_script(text):
 
     return {
         "lines": lines,
-        "affinity": int(affinity.group(1)) if affinity else 0,
+        "affinity": _clamp_affinity(int(affinity.group(1))) if affinity else 0,
         "bgm": bgm_name,
         "raw": text,
     }
@@ -193,7 +223,7 @@ def make_finale(history, affinity):
         "messages": [
             {"role": "system", "content": rules("003")},
             {"role": "user",
-             "content": f"これまでの会話:\n{{recap}}\n\n最終的な親密度: {{affinity}}"},
+             "content": f"これまでの会話:\n{recap}\n\n最終的な親密度: {affinity}"},
         ],
     }, timeout=90)
     return parse_script(data["choices"][0]["message"]["content"])

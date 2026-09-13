@@ -8,7 +8,7 @@ Prompt を共有するための最小のルームサーバー
   - ほかの人は POST /api/join にそのコードを添えて入る
   - **Prompt は1人1つまで**（POST /api/prompt）
   - **カウントダウンは全員が揃ってから**。会話を読み終えて Prompt 画面に着いた人が
-    POST /api/ready を打ち、部屋の全員が ready になった瞬間に 30 秒が始まる。
+    POST /api/ready を打ち、部屋の全員が ready になった瞬間に ROUND_SECONDS 秒が始まる。
     揃わないときは**ホストだけ** POST /api/force-start で先に始められる
   - 誰かが来た / 抜けたは events に積んで、各自がポーリングで拾って通知する
   - 時間切れのあと POST /api/story で、**いちばんいいねが多かった Prompt だけ**を
@@ -39,8 +39,8 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import story  # noqa: E402  同じフォルダに置いてある
 
-#: 1ラウンドの長さ 秒
-ROUND_SECONDS = 30
+#: 1ラウンドの長さ 秒（src/promptScene.js の TIME_LIMIT と揃える）
+ROUND_SECONDS = 60
 
 #: Prompt の長さ（src/promptScene.js の MAX_LENGTH と揃える）
 MAX_TEXT = 30
@@ -56,8 +56,13 @@ STALE_SECONDS = 5
 
 #: これだけ顔を見せない人は抜けたものとして数から外す。
 #: クライアントは参加した時点から定期的に state を見に来るので、
-#: 会話を読んでいる最中の人は生きたままになる（src/room.js の heartbeat）
-IDLE_SECONDS = 20
+#: 会話を読んでいる最中の人は生きたままになる（src/room.js の heartbeat）。
+#:
+#: **ブラウザは裏に回ったタブの setInterval を最大1分まで間引く。**
+#: 心拍が 2.5 秒でも、他のタブを見ている人は1分に1回しか顔を出せないので、
+#: それより短くすると「見ていただけで部屋から外れる」ことになる。
+#: 揃わないときはホストが force-start で先へ進められる。
+IDLE_SECONDS = 90
 
 #: 持っておく通知の数
 EVENT_KEEP = 50
@@ -69,12 +74,12 @@ EMPTY_SECONDS = 300
 CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 CODE_LENGTH = 4
 
-#: 生成した背景を残しておく枚数。これを超えたら古いものから消す
-KEEP_IMAGES = 20
-
 #: 親密度の下限と上限。参照画像のゲージは空から始まる
 AFFINITY_MIN = 0
 AFFINITY_MAX = 100
+
+#: エンディングで名前を出す人数（assets/reference_image/Ending_001.png）
+TOP_PLAYERS = 3
 
 #: 何日ぶん遊ぶか。これを終えると最後のシーンへ
 MAX_DAYS = 3
@@ -193,6 +198,26 @@ def _ranked(room):
     return sorted(room["prompts"], key=lambda p: -p["likes"])
 
 
+def _top_players(room):
+    """
+    もらったいいねの合計が多い順に TOP_PLAYERS 人。
+    **回ごとに room["prompts"] は捨てられる**ので、集計は
+    その回が締まった時点（_story）で room["likes"] に足しておく。
+    """
+    ranked = sorted(room["likes"].items(), key=lambda kv: -kv[1])
+    return [{"name": name, "likes": likes} for name, likes in ranked[:TOP_PLAYERS]]
+
+
+def _ending(room):
+    """
+    エンディングで使う材料。3日ぶん終わるまでは None。
+    毎回のポーリングに載せたくないので、それまでは何も出さない。
+    """
+    if not room["allDaysDone"]:
+        return None
+    return {"memories": room["memories"], "topPlayers": _top_players(room)}
+
+
 def _state(room, player_id=None, since_event=0):
     _prune(room)
     remaining = _remaining_ms(room)
@@ -219,6 +244,7 @@ def _state(room, player_id=None, since_event=0):
         "lastDay": MAX_DAYS,
         "allDaysDone": room["allDaysDone"],
         "finale": room["finale"],
+        "ending": _ending(room),
         "eventSeq": room["eventSeq"],
         "events": [e for e in room["events"] if e["seq"] > since_event],
     }
@@ -275,6 +301,9 @@ def _host(body):
             "deadline": None, "seq": 0, "events": [], "eventSeq": 0, "emptyAt": None,
             "story": None, "affinity": 0,
             "day": 1, "allDaysDone": False, "history": [], "finale": None,
+            # エンディングの回想と TOP PLAYERS 用。回ごとに prompts は捨てられるので、
+            # 締まった時点でここに写しておく
+            "memories": [], "likes": {},
         }
         ROOMS[code] = room
         _add_player(room, player_id, name)
@@ -352,17 +381,25 @@ def _force_start(body):
 
 
 def _trim_images():
-    """生成した背景が溜まりすぎないように、古いものから消す"""
+    """
+    畳まれた部屋の背景を消す。**生きている部屋のぶんは残す。**
+
+    枚数で切ると、同時にいくつも部屋が動いているときに進行中の部屋の背景まで
+    消えてしまう。1部屋で MAX_DAYS 枚使い、しかもエンディングの回想で
+    初日ぶんまで見返すので、消えると回想が虫食いになる。
+    生成した絵のファイル名は `<部屋コード>_<連番>.png` なので、頭で見分けられる。
+    """
+    with LOCK:
+        live = set(ROOMS)
     try:
-        files = [
-            os.path.join(story.OUT_DIR, n)
-            for n in os.listdir(story.OUT_DIR) if n.endswith(".png")
-        ]
+        names = [n for n in os.listdir(story.OUT_DIR) if n.endswith(".png")]
     except OSError:
         return
-    for path in sorted(files, key=os.path.getmtime, reverse=True)[KEEP_IMAGES:]:
+    for name in names:
+        if name.split("_", 1)[0] in live:
+            continue
         try:
-            os.remove(path)
+            os.remove(os.path.join(story.OUT_DIR, name))
         except OSError:
             pass
 
@@ -383,6 +420,11 @@ def _run_story(code, winner, stem):
         # その日の会話は最後の独り言（003.txt）で振り返らせるので取っておく
         if result.get("lines"):
             room["history"].append(result["lines"])
+
+        # 回想で使う絵と台詞。_story で積んだその日のぶんに入れる
+        if room["memories"]:
+            room["memories"][-1]["image"] = result.get("image")
+            room["memories"][-1]["lines"] = result.get("lines") or []
 
         # 1日ぶん終わった。次の日へ進めるか、これで打ち止めか
         if room["day"] >= MAX_DAYS:
@@ -424,6 +466,18 @@ def _story(body):
             return 200, _state(room, player_id, since)
 
         winner = ranked[0]["text"]
+
+        # この回はもう締まっている。いいねの合計と選ばれた Prompt を
+        # エンディング用に写しておく（room["prompts"] は次の回で捨てられる）
+        for p in room["prompts"]:
+            room["likes"][p["author"]] = room["likes"].get(p["author"], 0) + p["likes"]
+        room["memories"].append({
+            "day": room["day"],
+            "winner": {"author": ranked[0]["author"], "text": winner, "likes": ranked[0]["likes"]},
+            "image": None,
+            "lines": [],
+        })
+
         STORY_SEQ += 1
         stem = f"{code}_{STORY_SEQ}"
         room["story"] = {"status": "working", "winner": winner, "lines": [],

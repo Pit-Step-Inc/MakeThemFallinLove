@@ -16,12 +16,31 @@ export const STRINGS = {
     notImplemented: (name) => `Welcome, ${name} — the next scene is not implemented yet`,
     day:          (n) => `Day ${n}`,
     dayHint:      "Click to continue",
-    openingScript: [
-      { who: "martin",    text: "I can't believe I'm going on\na date with someone like her..." },
-      { who: "martin",    text: "She's late, though...\nFifteen minutes past our time..." },
-      { who: "catherine", text: "Sorry to keep you waiting!" },
-      { who: "martin",    text: "H-hey there..." },
-      { who: "catherine", text: "So? What do we do now?" },
+    // 冒頭の会話。日ごとに1本で、添字は day - 1。
+    // 背景は src/main.js の OPENING_BACKDROPS と同じ並び
+    openingScripts: [
+      [
+        { who: "martin",    text: "I can't believe I'm going on\na date with someone like her..." },
+        { who: "martin",    text: "She's late, though...\nFifteen minutes past our time..." },
+        { who: "catherine", text: "Sorry to keep you waiting!" },
+        { who: "martin",    text: "H-hey there..." },
+        { who: "catherine", text: "So? What do we do now?" },
+      ],
+      [
+        { who: "martin",    text: "I hope she's on time today..." },
+        { who: "catherine", text: "Sorry to keep you waiting!" },
+        { who: "martin",    text: "O-only five minutes today." },
+        { who: "catherine", text: "You counted?\nSo you really did wait for me." },
+        { who: "martin",    text: "Y-yeah. So, what do we do now?" },
+      ],
+      [
+        { who: "martin",    text: "Three dates with her...\nI still can't believe it." },
+        { who: "martin",    text: "Maybe she's getting a little\nused to me by now..." },
+        { who: "catherine", text: "Oh, you're here already." },
+        { who: "martin",    text: "Yeah. Same as always." },
+        { who: "catherine", text: "Not everyone's as free as you." },
+        { who: "catherine", text: "So, what do we do today?" },
+      ],
     ],
     promptLabel:       "What happens next?",
     promptPlaceholder: "Who does what and where, in 30 characters",
@@ -47,9 +66,12 @@ export const STRINGS = {
     generateFailed:    "Could not reach the story service",
     affinityUp:        (n) => `Catherine +${n}`,
     affinityDown:      (n) => `Catherine -${n}`,
-    wrappingUp:        "Catherine is thinking it over...",
     playerJoined:      (n) => `${n} joined`,
     playerLeft:        (n) => `${n} left`,
+    topPlayers:        "TOP PLAYERS",
+    theEnd:            "The End",
+    finalAffinity:     "Final Affinity",
+    backToTitle:       "Back to Title",
   },
   ja: {
     titleHint:    "← → で選択・Enter で決定",
@@ -63,12 +85,31 @@ export const STRINGS = {
     dayHint:      "クリックですすむ",
     // 台本。改行は明示する。自動折り返しに任せると「するこ／と」の
     // ように語の途中で割れる（.bubble-text は white-space: pre-line）
-    openingScript: [
-      { who: "martin",    text: "こんな僕があんな美女とデートすること\nになるなんて..." },
-      { who: "martin",    text: "それにしても遅いな...\n集合時間から15分もたっている..." },
-      { who: "catherine", text: "おまたせー" },
-      { who: "martin",    text: "や、やぁ" },
-      { who: "catherine", text: "で？これからどうするの？" },
+    // 冒頭の会話。日ごとに1本で、添字は day - 1。
+    // 背景は src/main.js の OPENING_BACKDROPS と同じ並び
+    openingScripts: [
+      [
+        { who: "martin",    text: "こんな僕があんな美女とデートすること\nになるなんて..." },
+        { who: "martin",    text: "それにしても遅いな...\n集合時間から15分もたっている..." },
+        { who: "catherine", text: "おまたせー" },
+        { who: "martin",    text: "や、やぁ" },
+        { who: "catherine", text: "で？これからどうするの？" },
+      ],
+      [
+        { who: "martin",    text: "今日は遅刻しないといいけど..." },
+        { who: "catherine", text: "おまたせー" },
+        { who: "martin",    text: "き、今日は5分だけだね" },
+        { who: "catherine", text: "細かっ。ちゃんと待ってたんだ？" },
+        { who: "martin",    text: "う、うん。これからどうする？" },
+      ],
+      [
+        { who: "martin",    text: "まさか3回もデートできるなんて..." },
+        { who: "martin",    text: "ちょっとは僕にも\n慣れてくれたのかな..." },
+        { who: "catherine", text: "おー、もう来てんじゃん" },
+        { who: "martin",    text: "うん。いつもどおりだね。" },
+        { who: "catherine", text: "私はあんたみたいに暇じゃないの" },
+        { who: "catherine", text: "今日はどうする？" },
+      ],
     ],
     promptLabel:       "次の展開は？",
     promptPlaceholder: "どこで誰がなにをしたかを30文字以内で",
@@ -94,9 +135,13 @@ export const STRINGS = {
     generateFailed:    "次の展開を作れませんでした",
     affinityUp:        (n) => `親密度 +${n}`,
     affinityDown:      (n) => `親密度 -${n}`,
-    wrappingUp:        "Catherine のひとりごと…",
     playerJoined:      (n) => `${n} が参加しました`,
     playerLeft:        (n) => `${n} が退出しました`,
+    // 参照画像（Ending_001 / 002）が英語表記なので、日本語でもそのまま出す
+    topPlayers:        "TOP PLAYERS",
+    theEnd:            "The End",
+    finalAffinity:     "最終親密度",
+    backToTitle:       "タイトルへ",
   },
 };
 

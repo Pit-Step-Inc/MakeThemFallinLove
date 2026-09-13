@@ -111,7 +111,9 @@
     <!-- 参照: assets/reference_image/opening_001.png, opening_002.png -->
     <section class="scene scene--opening" id="scene-opening" hidden>
 
-      <img class="backdrop"
+      <!-- 日ごとに街が変わる（1日目は渋谷・2日目は新宿・3日目は池袋）。
+           差し替えは src/main.js の OPENING_BACKDROPS -->
+      <img class="backdrop" id="openingBackdrop"
            src="assets/background/background_shibuya_001.png"
            alt=""
            width="1672" height="941">
@@ -121,6 +123,11 @@
            Catherine は合流するまで出さない -->
       <canvas class="portrait portrait--martin"    id="openingMartin"    aria-hidden="true"></canvas>
       <canvas class="portrait portrait--catherine" id="openingCatherine" aria-hidden="true" hidden></canvas>
+
+      <!-- 名札。誰が喋っているかに関わらず出しておく。
+           Catherine は合流するまで立ち絵ごと隠す -->
+      <span class="name-tag name-tag--martin"    id="openingNameMartin">Martin</span>
+      <span class="name-tag name-tag--catherine" id="openingNameCatherine" hidden>Catherine</span>
 
       <!-- 台詞は1文字ずつ出す。未表示ぶんも DOM には置いたまま透明にして、
            途中で行数が変わって吹き出しの中で文字が飛び跳ねないようにする -->
@@ -143,6 +150,9 @@
 
       <canvas class="portrait portrait--martin"          id="storyMartin"    aria-hidden="true"></canvas>
       <canvas class="portrait portrait--catherine-story" id="storyCatherine" aria-hidden="true"></canvas>
+
+      <span class="name-tag name-tag--martin"          id="storyNameMartin">Martin</span>
+      <span class="name-tag name-tag--catherine-story" id="storyNameCatherine">Catherine</span>
 
       <div class="bubble bubble--martin" id="storyBubbleMartin" hidden>
         <p class="bubble-text"><span id="storyShownMartin"></span><span class="bubble-rest" id="storyRestMartin"></span></p>
@@ -167,9 +177,75 @@
 
       <canvas class="portrait portrait--catherine-last" id="lastCatherine" aria-hidden="true"></canvas>
 
+      <span class="name-tag name-tag--catherine-last" id="lastNameCatherine">Catherine</span>
+
       <div class="bubble bubble--catherine" id="lastBubbleCatherine" hidden>
         <p class="bubble-text"><span id="lastShownCatherine"></span><span class="bubble-rest" id="lastRestCatherine"></span></p>
       </div>
+
+      <!-- 3日ぶんの積み上がった親密度を数字でも出す（ゲージは上に出ている） -->
+      <p class="final-affinity" id="finalAffinity" hidden>
+        <span class="final-affinity__label" id="finalAffinityLabel"></span>
+        <span class="final-affinity__value" id="finalAffinityValue"></span>
+      </p>
+
+    </section>
+
+    <!-- ===== 回想（3日ぶんの思い出と、選ばれた Prompt） ===== -->
+    <!-- 参照: assets/reference_image/Memory_001.png, Memory_002.png -->
+    <section class="scene scene--opening scene--memory" id="scene-memory" hidden>
+
+      <img class="backdrop" id="memoryBackdrop" alt="" width="1792" height="1024">
+
+      <canvas class="portrait portrait--martin"    id="memoryMartin"    aria-hidden="true"></canvas>
+      <canvas class="portrait portrait--catherine" id="memoryCatherine" aria-hidden="true"></canvas>
+
+      <span class="name-tag name-tag--martin"    id="memoryNameMartin">Martin</span>
+      <span class="name-tag name-tag--catherine" id="memoryNameCatherine">Catherine</span>
+
+      <!-- その日いちばんいいねが多かった Prompt。中身は promptCard.js が組む -->
+      <div class="memory-card" id="memoryCard"></div>
+
+      <div class="bubble bubble--martin" id="memoryBubbleMartin" hidden>
+        <p class="bubble-text"><span id="memoryTextMartin"></span></p>
+      </div>
+
+      <div class="bubble bubble--catherine" id="memoryBubbleCatherine" hidden>
+        <p class="bubble-text"><span id="memoryTextCatherine"></span></p>
+      </div>
+
+    </section>
+
+    <!-- ===== エンディング ===== -->
+    <!-- 参照: assets/reference_image/Ending_001.png, Ending_002.png
+         ロゴと歩く二人は出しっぱなしで、真ん中だけ
+         TOP PLAYERS → スタッフロール → The End と入れ替える -->
+    <section class="scene scene--day scene--ending" id="scene-ending" hidden>
+
+      <img class="logo logo--day"
+           src="assets/UI/title.png"
+           alt="Make Them Fall (in love)"
+           width="1774" height="887">
+
+      <canvas class="walker walker--martin"    id="endMartinWalk"    aria-hidden="true"></canvas>
+      <canvas class="walker walker--catherine" id="endCatherineWalk" aria-hidden="true"></canvas>
+
+      <!-- 上位3名 -->
+      <div class="top-players" id="topPlayers" hidden>
+        <p class="top-players__heading" id="topPlayersHeading"></p>
+        <ul class="top-players__list" id="topPlayersList"></ul>
+      </div>
+
+      <!-- スタッフロール。中身は endingScene.js の CREDITS から組む -->
+      <div class="credits" id="credits" hidden>
+        <div class="credits__roll" id="creditsRoll"></div>
+      </div>
+
+      <!-- 締め -->
+      <p class="end-label" id="endLabel" hidden></p>
+
+      <!-- The End のあとだけ出す。押すとタイトルからやり直せる -->
+      <button type="button" class="pixel-frame title-btn" id="backToTitleBtn" hidden></button>
 
     </section>
 

@@ -25,6 +25,8 @@ export const TRACKS = {
   title:   "assets/BGM/Title",
   opening: "assets/BGM/Opening",
   day:     "assets/BGM/Day",
+  // エンディング。素材のファイル名が EndrRoll なのでそれに合わせてある
+  endRoll: "assets/BGM/EndrRoll",
 
   // 生成された展開で選ばれる5曲。名前は assets/Prompt/002.txt の選択肢と
   // そろえてある（tools/story.py の BGM_CHOICES）
@@ -42,6 +44,7 @@ export const SE = {
   dayStart: "assets/SE/day_start_jingle",
   chatNext: "assets/SE/chat_next_chun",
   sceneChange: "assets/SE/scene_transition_fuwan_fuwa_chakiin",
+  affinity: "assets/SE/cute_like_pi_se",
 };
 
 /**
