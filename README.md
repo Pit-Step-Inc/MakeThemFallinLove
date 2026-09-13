@@ -5,9 +5,9 @@ URL:
 
 ## 2. Core Concept
 
-## 3. Player Fantasy
+## 3. How to Play
 
-## 4. Main Characters
+## 4. Player Fantasy / Main Characters
 ### Martin
 ### Catherine
 
