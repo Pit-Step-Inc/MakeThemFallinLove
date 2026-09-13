@@ -58,7 +58,184 @@
 
     </section>
 
+    <!-- ===== 部屋（ホストになる / コードで参加） ===== -->
+    <section class="scene scene--room" id="scene-room" hidden>
+
+      <img class="logo logo--small"
+           src="assets/UI/title.png"
+           alt="Make Them Fall (in love)"
+           width="1774" height="887">
+
+      <h1 class="heading" id="roomHeading"></h1>
+
+      <button type="button" class="pixel-frame next-btn room-host-btn" id="hostBtn"></button>
+
+      <p class="room-or" id="roomOr"></p>
+
+      <div class="room-join">
+        <input class="pixel-frame room-code-input"
+               id="roomCodeInput"
+               type="text"
+               inputmode="latin"
+               maxlength="6"
+               autocomplete="off" autocapitalize="characters" spellcheck="false"
+               aria-labelledby="roomHeading">
+        <button type="button" class="pixel-frame room-join-btn" id="joinBtn" disabled></button>
+      </div>
+
+      <p class="hint" id="roomHint" role="status" aria-live="polite"></p>
+
+    </section>
+
+    <!-- ===== 日付切り替え ===== -->
+    <!-- 参照: assets/reference_image/DayChange.png -->
+    <section class="scene scene--day" id="scene-day" hidden>
+
+      <img class="logo logo--day"
+           src="assets/UI/title.png"
+           alt="Make Them Fall (in love)"
+           width="1774" height="887">
+
+      <p class="day-label" id="dayLabel" role="status" aria-live="polite"></p>
+
+      <!-- 歩きは assets/blender/develop/ の PNG シート + JSON。
+           解像度はコマの原寸で、表示サイズは CSS 側で決める。 -->
+      <canvas class="walker walker--martin"    id="martinWalk"    aria-hidden="true"></canvas>
+      <canvas class="walker walker--catherine" id="catherineWalk" aria-hidden="true"></canvas>
+
+      <p class="hint" id="dayHint" role="status" aria-live="polite"></p>
+
+    </section>
+
+    <!-- ===== オープニング（渋谷・1日目冒頭の会話） ===== -->
+    <!-- 参照: assets/reference_image/opening_001.png, opening_002.png -->
+    <section class="scene scene--opening" id="scene-opening" hidden>
+
+      <img class="backdrop"
+           src="assets/background/background_shibuya_001.png"
+           alt=""
+           width="1672" height="941">
+
+      <!-- 口パクは martin_talk03 / catherine_talk01。
+           原寸のまま canvas に描いて CSS で縮める。
+           Catherine は合流するまで出さない -->
+      <canvas class="portrait portrait--martin"    id="openingMartin"    aria-hidden="true"></canvas>
+      <canvas class="portrait portrait--catherine" id="openingCatherine" aria-hidden="true" hidden></canvas>
+
+      <!-- 台詞は1文字ずつ出す。未表示ぶんも DOM には置いたまま透明にして、
+           途中で行数が変わって吹き出しの中で文字が飛び跳ねないようにする -->
+      <div class="bubble bubble--martin" id="openingBubbleMartin" hidden>
+        <p class="bubble-text"><span id="openingShownMartin"></span><span class="bubble-rest" id="openingRestMartin"></span></p>
+      </div>
+
+      <div class="bubble bubble--catherine" id="openingBubbleCatherine" hidden>
+        <p class="bubble-text"><span id="openingShownCatherine"></span><span class="bubble-rest" id="openingRestCatherine"></span></p>
+      </div>
+
+
+    </section>
+
+    <!-- ===== 次の展開（生成された会話） ===== -->
+    <!-- 背景も台詞も BGM も OpenAI から来る（tools/story.py） -->
+    <section class="scene scene--opening scene--story" id="scene-story" hidden>
+
+      <img class="backdrop" id="storyBackdrop" alt="" width="1792" height="1024">
+
+      <canvas class="portrait portrait--martin"          id="storyMartin"    aria-hidden="true"></canvas>
+      <canvas class="portrait portrait--catherine-story" id="storyCatherine" aria-hidden="true"></canvas>
+
+      <div class="bubble bubble--martin" id="storyBubbleMartin" hidden>
+        <p class="bubble-text"><span id="storyShownMartin"></span><span class="bubble-rest" id="storyRestMartin"></span></p>
+      </div>
+
+      <div class="bubble bubble--catherine" id="storyBubbleCatherine" hidden>
+        <p class="bubble-text"><span id="storyShownCatherine"></span><span class="bubble-rest" id="storyRestCatherine"></span></p>
+      </div>
+
+    </section>
+
+    <!-- ===== ラストシーン（Catherine の独り言） ===== -->
+    <!-- 参照: assets/reference_image/LastScene.png
+         台詞は assets/Prompt/003.txt から作られる。Martin は出ないので、
+         talkScene は要素が無いキャラを飛ばす作りにしてある -->
+    <section class="scene scene--last" id="scene-last" hidden>
+
+      <img class="logo logo--last"
+           src="assets/UI/title.png"
+           alt="Make Them Fall (in love)"
+           width="1774" height="887">
+
+      <canvas class="portrait portrait--catherine-last" id="lastCatherine" aria-hidden="true"></canvas>
+
+      <div class="bubble bubble--catherine" id="lastBubbleCatherine" hidden>
+        <p class="bubble-text"><span id="lastShownCatherine"></span><span class="bubble-rest" id="lastRestCatherine"></span></p>
+      </div>
+
+    </section>
+
+    <!-- ===== シーン切り替え ===== -->
+    <!-- 参照: assets/reference_image/scene_change.png -->
+    <section class="scene scene--change" id="scene-change" hidden>
+
+      <!-- 背景のワープ。1コマ 1672x941 の連番 PNG を src の差し替えで回す -->
+      <img class="change-fx" id="changeFx" alt="" width="1672" height="941">
+
+      <ul class="prompt-cards" id="changeCards"></ul>
+
+      <p class="change-heading" id="changeHeading"></p>
+
+      <!-- いちばんいいねが多かった Prompt -->
+      <div class="change-hero" id="changeHero" hidden></div>
+
+    </section>
+
     <!-- ===== 全シーン共通 ===== -->
+
+    <!-- ===== Prompt 入力フェーズ =====
+         参照: assets/reference_image/InputPrompt.png
+
+         **シーンの外に置いてある。** 会話が終わると、そのときの画面の上に
+         そのまま重なる（1回目は渋谷、2回目からは生成された背景）。
+         シーンを切り替えないのは、切り替えると黒を挟んでしまうため。 -->
+    <div class="prompt" id="promptPhase" hidden>
+
+      <!-- 投稿された Prompt を最大5つ。空きは ○○○ のまま出しておく -->
+      <ul class="prompt-cards" id="promptCards"></ul>
+
+      <div class="pixel-panel prompt-timer">
+        <span class="prompt-timer__label" id="promptLabel"></span>
+        <span class="prompt-timer__count" id="promptCount">30</span>
+      </div>
+
+      <!-- 揃うのを待たずに始める。ホストにだけ出す -->
+      <button type="button" class="pixel-panel prompt-start" id="promptStart" hidden></button>
+
+      <label class="pixel-panel prompt-input">
+        <span class="sr-only" id="promptInputLabel"></span>
+        <input type="text" id="promptInput"
+               maxlength="30"
+               autocomplete="off" autocapitalize="off" spellcheck="false"
+               aria-labelledby="promptInputLabel">
+      </label>
+
+    </div>
+
+    <!-- 親密度。Prompt 入力と生成された展開の両方で同じ場所に出すので、
+         シーンの外に置いてある -->
+    <div class="affection" id="affection" role="progressbar"
+         aria-label="Catherine" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden>
+      <div class="affection__fill" id="affectionFill"></div>
+    </div>
+
+    <!-- 部屋コードの札。押すとコピーできる。通知と同じくシーンの外に置く -->
+    <button type="button" class="code-chip" id="codeChip" hidden>
+      <span class="code-chip__label" id="codeChipLabel"></span>
+      <span class="code-chip__value" id="codeChipValue"></span>
+    </button>
+
+    <!-- 参加・退出の通知。どの画面でも同じ場所に出したいので .scene の外に置く -->
+    <ul class="toasts" id="toasts" role="status" aria-live="polite"></ul>
+
     <button type="button" class="sound-toggle" id="soundToggle"
             aria-pressed="false" title="BGM (M)">
       <span aria-hidden="true" id="soundIcon">&#9834;</span>

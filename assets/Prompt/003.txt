@@ -1,0 +1,12 @@
+最終指示
+これまでのMartinとCatherineの会話を振り返り以下のようにCatherineの一人ごとを5文と文に紐づくemotion(joy,anger,sadness,pleasure,surprised)と共に出力して。親密度も加味し、辛口な独り言になるように。
+Catherine_conversation_01:
+Catherine_emotion_01:
+Catherine_conversation_02:
+Catherine_emotion_02:
+Catherine_conversation_03:
+Catherine_emotion_03:
+Catherine_conversation_04:
+Catherine_emotion_04:
+Catherine_conversation_05:
+Catherine_emotion_05:

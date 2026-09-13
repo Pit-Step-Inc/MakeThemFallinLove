@@ -38,10 +38,11 @@ function clamp(value) {
 /**
  * @param {object}    opts
  * @param {"en"|"ja"} opts.lang
+ * @param {object}    opts.sfx     audio.js の createSfx()
  * @param {Function}  opts.onDone  (nickname) => void
  * @param {Function}  opts.onBack  () => void   言語選択へ戻る
  */
-export function initNickname({ lang, onDone, onBack }) {
+export function initNickname({ lang, sfx, onDone, onBack }) {
   const scene   = document.getElementById("scene-nickname");
   const heading = document.getElementById("nameHeading");
   const input   = /** @type {HTMLInputElement} */ (document.getElementById("nameInput"));
@@ -86,30 +87,38 @@ export function initNickname({ lang, onDone, onBack }) {
       submit();
     } else if (e.key === "Escape") {
       e.preventDefault();
-      onBack?.();
+      goBack();
     }
   });
 
   nextBtn.addEventListener("click", submit);
-  backBtn.addEventListener("click", () => onBack?.());
+  backBtn.addEventListener("click", goBack);
 
   // 入力欄の外にフォーカスがあるときでも Escape で戻れるようにする
   window.addEventListener("keydown", (e) => {
     if (scene.hidden || e.isComposing) return;
     if (e.key === "Escape" && document.activeElement !== input) {
       e.preventDefault();
-      onBack?.();
+      goBack();
     }
   });
 
   function submit() {
     const name = input.value.trim();
     if (!name) {
+      // 空のまま Enter。進まないので決定音も鳴らさない
       input.focus();
       return;
     }
+    sfx?.play("confirm");
     saveNickname(name);
     onDone(name);
+  }
+
+  /** 戻る。ボタンでも Escape でも通る一箇所にまとめてある */
+  function goBack() {
+    sfx?.play("cancel");
+    onBack?.();
   }
 
   syncNext();

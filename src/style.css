@@ -22,6 +22,9 @@
   --red-deep:   #8E0F16;
   --gold:       #E9B949;
   --btn-label:  #14100E;
+  /* 親密度ゲージ。素材（assets/UI/affection.png）のハートから拾った桃色 */
+  --pink:       #FB6A99;
+  --pink-deep:  #FB3F72;
 
   --stage-ratio: 16 / 9;
 }
@@ -285,6 +288,855 @@ body {
   opacity: 1;
   outline: 0.3cqw solid var(--gold);
   outline-offset: 0.6cqw;
+}
+
+/* ---------------------------------------------------------
+   日付切り替えシーン
+   参照: assets/reference_image/DayChange.png
+
+   寸法は参照画像（730x408）から実測して cqw に直したもの。
+   ロゴは上・日付は中央・2人は左右の下寄せで、他シーンの
+   flex 中央寄せとは組み方が違うので絶対配置にしてある。
+
+   中央寄せに transform を使わないのは、.logo が logo-in で
+   transform を持っていて打ち消し合うため。負の margin で寄せる。
+   --------------------------------------------------------- */
+.scene--day {
+  display: block;
+}
+
+.logo--day {
+  position: absolute;
+  top: 3.8cqw;
+  left: 50%;
+  width: 29cqw;
+  margin-left: -14.5cqw;
+}
+
+.day-label {
+  position: absolute;
+  top: 25.6cqw;
+  left: 0;
+  right: 0;
+
+  margin: 0;
+  text-align: center;
+  font-size: 6.2cqw;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  color: #FFFFFF;
+
+  animation: day-in 700ms 250ms ease both;
+}
+
+/* ---------------------------------------------------------
+   歩きアニメーション（Martin / Catherine）
+
+   コマの原寸は Martin 268x656・Catherine 326x746。
+   寸法・位置はすべて参照画像 DayChange.png（736x414 = 16:9）から
+   コマをテンプレートマッチングして実測した値。
+
+   2人の倍率は揃っていない。Catherine が 1px ≒ 0.0483cqw、
+   Martin が 1px ≒ 0.0533cqw（約 1.1 倍）で、原寸の身長差を打ち消して
+   画面上ではほぼ同じ背丈に見せている。引きの画で Martin が小さく
+   見えすぎるのを避けるため。
+
+   bottom も 2人で違う（Martin 4.0cqw / Catherine 2.9cqw）。
+   コマは靴底ぎりぎりで切られているので、この差はそのまま
+   立ち位置の奥行きの差として出る。
+   --------------------------------------------------------- */
+.walker {
+  position: absolute;
+  bottom: 2.9cqw;
+
+  image-rendering: pixelated;
+  user-select: none;
+  -webkit-user-drag: none;
+
+  animation: walker-in 800ms ease both;
+}
+
+.walker--martin {
+  left: 22.6cqw;
+  width: 14.3cqw;
+  height: 35cqw;
+  margin-left: -7.15cqw;
+  bottom: 4cqw;
+}
+
+.walker--catherine {
+  left: 81.2cqw;
+  width: 15.8cqw;
+  height: 36.1cqw;
+  margin-left: -7.9cqw;
+}
+
+/* .hint は flex シーンの中では自然に中央に来るが、
+   このシーンは display:block なので左右を明示する */
+.scene--day .hint {
+  left: 0;
+  right: 0;
+}
+
+@keyframes day-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes walker-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .day-label, .walker { animation: none; }
+}
+
+/* ---------------------------------------------------------
+   オープニングシーン（渋谷・Martin の独白）
+   参照: assets/reference_image/opening_001.png
+
+   寸法は参照画像（951x535）から実測して cqw に直したもの。
+   Martin は martin_talk03 のコマ（500x726）を 0.470 倍で置く実測値で、
+   吹き出しは素材の青いリングの位置をアンカーにして逆算してある。
+   ただし Martin の bottom だけは参照画像より 6.4cqw 沈めてある（下記）。
+   --------------------------------------------------------- */
+.scene--opening {
+  display: block;
+}
+
+/* 背景は 1672x941（16:9）。ステージと同比なので cover でほぼ切れない */
+.backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* 立ち絵。足元ではなく画面下端で切るので bottom 基準。
+   倍率はコマ原寸に対して Martin 0.470 / Catherine 0.412（いずれも実測）*/
+.portrait {
+  position: absolute;
+  image-rendering: pixelated;
+  user-select: none;
+  -webkit-user-drag: none;
+
+  animation: portrait-in 600ms ease both;
+}
+
+/* bottom は参照画像の実測値だと 0.4cqw だが、それだと引きすぎて表情が読めない。
+   6.4cqw 沈めて胸から下を画面外に落とし、顔を寄せて会話の距離感を近くしている。
+   幅・高さ・left は実測どおり（= 参照画像と同じ倍率・同じ横位置） */
+.portrait--martin {
+  left: 6.1cqw;
+  bottom: -6cqw;
+  width: 24.7cqw;
+  height: 35.9cqw;
+  animation-delay: 120ms;
+}
+
+.portrait--catherine {
+  left: 72.35cqw;
+  bottom: -0.3cqw;
+  width: 24.82cqw;
+  height: 31.97cqw;
+}
+
+/* 生成された会話は表情クリップだけを使う。Catherine の表情は
+   コマの縦横比が 0.79 前後で、既定の talk01（0.78）より少し横に広いので、
+   中心をそろえたまま幅だけ合わせる */
+.portrait--catherine-story {
+  position: absolute;
+  left: 72.06cqw;
+  bottom: -0.3cqw;
+  width: 25.4cqw;
+  height: 31.97cqw;
+
+  image-rendering: pixelated;
+  user-select: none;
+  -webkit-user-drag: none;
+  animation: portrait-in 600ms ease both;
+}
+
+/* ---------------------------------------------------------
+   吹き出し
+
+   SpeechBubble_blue.png は 2142x476（比 4.50）だが、2行を収めるため
+   参照画像では縦に約 2割 伸ばしてある（比 3.72）。ドット絵なので
+   border-image の9スライスではなく、そのまま引き伸ばして使う
+   （しっぽが左上にあり、9スライスの角に収まらない）。
+   --------------------------------------------------------- */
+.bubble {
+  position: absolute;
+  width: 37.76cqw;
+
+  display: grid;
+  place-items: center;
+  /* 左右は角の丸みとしっぽの付け根を避ける幅 */
+  padding: 0.6cqw 3cqw 0.9cqw;
+
+  background: center / 100% 100% no-repeat;
+  image-rendering: pixelated;
+  /* 生成された台詞が指定より長いことがある。枠からはみ出させない */
+  overflow: hidden;
+
+  animation: bubble-in 420ms cubic-bezier(.2, .9, .3, 1.05) both;
+}
+
+/* .bubble の display:grid は UA の [hidden]{display:none} より強い */
+.bubble[hidden] { display: none; }
+
+/* Martin は左向きのしっぽ、Catherine は右向き。
+   それぞれ話者の側へ少し寄せてある（実測どおり） */
+.bubble--martin {
+  left: 29.65cqw;
+  top: 28.6cqw;
+  height: 10.16cqw;
+  background-image: url("../assets/UI/SpeechBubble_blue.png");
+  animation-delay: 320ms;
+}
+
+.bubble--catherine {
+  left: 31.34cqw;
+  top: 39.94cqw;
+  height: 9.33cqw;
+  background-image: url("../assets/UI/SpeechBubble_pink.png");
+}
+
+.bubble-text {
+  margin: 0;
+  text-align: center;
+  /* i18n 側の 
+ をそのまま改行にする。日本語は語の途中で折り返すと
+     読みにくいので、折り返し位置は文字列側で決める */
+  white-space: pre-line;
+
+  font-size: 1.62cqw;
+  line-height: 1.6;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+}
+
+/* まだ出していないぶん。display や visibility で消すと行数が変わって
+   文字が跳ねるので、場所は取ったまま色だけ透明にする
+   （読み上げにも残るので visibility: hidden より都合がよい）*/
+.bubble-rest {
+  color: transparent;
+}
+
+@keyframes portrait-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes bubble-in {
+  from { opacity: 0; transform: scale(.94); }
+  to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .portrait, .bubble { animation: none; }
+}
+
+/* ---------------------------------------------------------
+   Prompt 入力フェーズ
+   参照: assets/reference_image/InputPrompt.png
+
+   会話と同じ #scene-opening の中に置く。背景も立ち絵も動かないので、
+   シーンを切り替えず吹き出しと差し替えるだけにしてある。
+   寸法は参照画像（958x536）から実測して cqw に直したもの。
+   --------------------------------------------------------- */
+/* シーンの外に置いてあるので、そのときの画面の上に重なる。
+   通知・コードの札・親密度（z-index: 2）よりは下に置いて、隠さないようにする */
+.prompt {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.prompt[hidden] { display: none; }
+
+/* ---------------------------------------------------------
+   ドット枠（白地・黒/白/黒の二重フチ）
+
+   参照画像の枠は外から 黒・白・黒・白地 の4層。この形の素材が
+   assets/UI に無いので CSS で描いている。inset のリングにしてあるのは、
+   box-shadow を外側に出すと指定した幅より大きく見えて、実測した
+   寸法がそのまま使えなくなるため。
+   --------------------------------------------------------- */
+.pixel-panel {
+  /* 実測は 黒2 / 白3 / 黒2 px（参照画像 958px 幅）。この比で置いてある */
+  --ring: 0.3cqw;
+
+  background: #FFFFFF;
+  border: var(--ring) solid var(--ink);
+  border-radius: 0.9cqw;
+  box-shadow:
+    inset 0 0 0 calc(var(--ring) * 1.5) #FFFFFF,
+    inset 0 0 0 calc(var(--ring) * 2.5) var(--ink);
+}
+
+/* ---------------------------------------------------------
+   投稿カード 5枚
+   --------------------------------------------------------- */
+.prompt-cards {
+  position: absolute;
+  top: 1.57cqw;
+  left: 0;
+  right: 0;
+
+  display: flex;
+  /* 左詰め。中央寄せにすると1枚目が真ん中に出てしまう。
+     この余白は5枚並べたときに中央へ収まる値（(100 - 92.17) / 2）*/
+  justify-content: flex-start;
+  gap: 1.77cqw;
+
+  margin: 0;
+  padding: 0 0 0 3.91cqw;
+  list-style: none;
+}
+
+.prompt-card-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.04cqw;
+}
+
+/* 中の文字はすべて em。カード側の font-size を変えれば丸ごと拡大できる
+   （切り替え画面の中央カードがそれ）*/
+.prompt-card {
+  width: 17.01cqw;
+  height: 12.63cqw;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.07em 0.79em 0.71em;
+
+  font-size: 1.4cqw;
+  color: var(--ink);
+  text-align: center;
+  overflow: hidden;
+}
+
+.prompt-card__name {
+  font-size: 1.036em;
+  line-height: 1;
+  letter-spacing: 0.02em;
+}
+
+.prompt-card__text {
+  flex: 1;
+  display: grid;
+  place-items: center;
+
+  margin: 0;
+  font-size: 1em;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+  overflow-wrap: anywhere;
+}
+
+.prompt-card__likes {
+  font-size: 1.571em;
+  line-height: 1;
+}
+
+/* いいね。素材は円の外に余白があるので、実測 3.86cqw に対して少し大きく取る */
+.like-btn {
+  width: 4.02cqw;
+  height: 4.02cqw;
+
+  background: url("../assets/UI/Button_Good.png") center / 100% 100% no-repeat;
+  image-rendering: pixelated;
+  border: 0;
+  padding: 0;
+
+  cursor: pointer;
+  will-change: transform;
+  transition: transform 120ms ease;
+}
+
+.like-btn:hover  { transform: scale(1.12); }
+.like-btn:active { transform: scale(1); }
+
+.like-btn:focus-visible {
+  outline: 0.35cqw solid var(--gold);
+  outline-offset: 0.4cqw;
+  border-radius: 50%;
+}
+
+/* ---------------------------------------------------------
+   好感度ゲージ
+   素材の内側は抜けているので、下に敷いた帯が伸び縮みして見える
+   --------------------------------------------------------- */
+.affection {
+  position: absolute;
+  left: 75.14cqw;
+  top: 20.38cqw;
+  width: 19.93cqw;
+  aspect-ratio: 2112 / 410;
+  z-index: 2;
+
+  background: url("../assets/UI/affection.png") center / 100% 100% no-repeat;
+  image-rendering: pixelated;
+}
+
+.affection[hidden] { display: none; }
+
+/* 枠の内側の帯。素材の内寸から実測した位置に置いてある */
+.affection__fill {
+  position: absolute;
+  left: 23.5%;
+  right: 4.5%;
+  top: 30%;
+  bottom: 30%;
+
+  transform-origin: left center;
+  transform: scaleX(var(--affection, 0));
+  /* 下が濃いめの桃色。ハートと同じ2色なので、並べても浮かない */
+  background: linear-gradient(180deg, var(--pink) 55%, var(--pink-deep) 55%);
+  transition: transform 400ms ease;
+}
+
+/* ---------------------------------------------------------
+   「次の展開は？」＋ 残り秒数
+   --------------------------------------------------------- */
+.prompt-timer {
+  position: absolute;
+  left: 37.47cqw;
+  top: 24.01cqw;
+  width: 28.60cqw;
+  height: 5.64cqw;
+
+  display: grid;
+  place-items: center;
+  color: var(--ink);
+}
+
+.prompt-timer__label {
+  font-size: 1.45cqw;
+  line-height: 1;
+  letter-spacing: 0.04em;
+}
+
+/* 秒数は右端。ラベルは枠の中央に置いたままにしたいので重ねて逃がす */
+.prompt-timer__count {
+  position: absolute;
+  right: 2.2cqw;
+  font-size: 2.4cqw;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 残り 5 秒を切ったら赤 */
+.prompt-timer__count.is-low { color: var(--red); }
+
+/* ---------------------------------------------------------
+   入力欄
+   --------------------------------------------------------- */
+.prompt-input {
+  position: absolute;
+  left: 34.76cqw;
+  top: 30.58cqw;
+  width: 33.40cqw;
+  height: 11.27cqw;
+
+  display: grid;
+  place-items: center;
+  padding: 0 2.4cqw;
+  cursor: text;
+}
+
+.prompt-input input {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  padding: 0;
+
+  font-family: inherit;
+  font-size: 1.55cqw;
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+  text-align: center;
+  color: var(--ink);
+}
+
+.prompt-input input::placeholder {
+  color: color-mix(in srgb, var(--ink) 38%, transparent);
+}
+
+.prompt-input input:focus { outline: 0; }
+
+.prompt-input:focus-within {
+  outline: 0.3cqw solid color-mix(in srgb, var(--gold) 70%, transparent);
+  outline-offset: 0.6cqw;
+}
+
+.prompt-input input:disabled {
+  color: color-mix(in srgb, var(--ink) 45%, transparent);
+  cursor: default;
+}
+
+/* 出し終わった人と時間切れの人。1人1つなので出したら終わり。
+   枠ごと薄くすると背景が透けて壊れて見えるので、中の文字だけ落とす */
+.prompt.is-over .prompt-input,
+.prompt.is-sent .prompt-input,
+.prompt.is-waiting .prompt-input { cursor: default; }
+
+.prompt.is-over .prompt-input input,
+.prompt.is-sent .prompt-input input,
+.prompt.is-waiting .prompt-input input { opacity: 0.55; }
+
+/* 待ち合わせ中の人数（2/3 など）は秒数より字数が多いので、少し詰める */
+.prompt.is-waiting .prompt-timer__count { font-size: 1.9cqw; }
+
+@media (prefers-reduced-motion: reduce) {
+  .like-btn { transition: none; }
+  .like-btn:hover { transform: none; }
+  .affection__fill { transition: none; }
+}
+
+/* ---------------------------------------------------------
+   ラストシーン（Catherine の独り言）
+   参照: assets/reference_image/LastScene.png
+
+   3日ぶん終わったあとの締め。黒地にロゴと Catherine だけで、
+   台詞は 003.txt から作られたものが桃色の吹き出しに出る。
+   寸法は参照画像（916x515）からの実測。
+   --------------------------------------------------------- */
+.scene--last {
+  display: block;
+  background: var(--ink);
+}
+
+.logo--last {
+  position: absolute;
+  left: 9.28cqw;
+  top: 6cqw;
+  width: 33.08cqw;
+}
+
+/* 表情クリップ（比 0.79 前後）に合わせた枠。実測は scale 0.418 */
+.portrait--catherine-last {
+  position: absolute;
+  left: 62.66cqw;
+  bottom: -0.33cqw;
+  width: 26.53cqw;
+  height: 33.19cqw;
+
+  image-rendering: pixelated;
+  user-select: none;
+  -webkit-user-drag: none;
+  animation: portrait-in 600ms ease both;
+}
+
+/* この画面だけ吹き出しの位置が違う（Catherine の左下に置く） */
+.scene--last .bubble--catherine {
+  left: 23.37cqw;
+  top: 39.5cqw;
+  width: 39.31cqw;
+  height: 9.69cqw;
+}
+
+/* ---------------------------------------------------------
+   シーン切り替え画面
+   参照: assets/reference_image/scene_change.png
+
+   上段の投稿カードは入力画面と同じ寸法・同じ位置のまま残し、
+   中央にいちばんいいねが多かった1枚を 1.16 倍で置く。
+   --------------------------------------------------------- */
+.scene--change {
+  display: block;
+  background: var(--ink);
+}
+
+/* 背景のワープ。素材は 1672x941（背景と同寸・16:9）*/
+.change-fx {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.change-heading {
+  position: absolute;
+  top: 21.4cqw;
+  left: 0;
+  right: 0;
+
+  margin: 0;
+  text-align: center;
+  font-size: 3.2cqw;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  color: #FFFFFF;
+  /* 背景の白い筋に重なると読めなくなるので、暗い縁を薄く敷く */
+  text-shadow: 0 0 0.7cqw rgba(0, 0, 0, 0.9), 0 0.15cqw 0.3cqw rgba(0, 0, 0, 0.7);
+}
+
+.change-hero {
+  position: absolute;
+  top: 27.7cqw;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+}
+
+.change-hero[hidden] { display: none; }
+
+/* 中央の1枚だけ大きくする。中の文字は em なので一緒に付いてくる */
+.prompt-card-slot--hero .prompt-card {
+  width: 19.8cqw;
+  height: 14.7cqw;
+  font-size: 1.63cqw;
+}
+
+/* この画面のいいねは表示だけ。押せないので当たり判定も出さない */
+.scene--change .like-btn {
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------------
+   部屋の選択（ホストになる / コードで参加）
+   ニックネームの次に出る。組み方はニックネーム画面に合わせてある
+   --------------------------------------------------------- */
+/* 縦に積むものが多いので、ロゴを小さくして間も詰める。
+   そうしないと下のヒントに入力欄が重なる */
+.scene--room {
+  gap: 1.8cqw;
+}
+
+.scene--room .logo {
+  width: 30cqw;
+  margin-bottom: 0.6cqw;
+}
+
+.room-host-btn {
+  width: 30cqw;
+  margin-top: 0.6cqw;
+}
+
+.room-or {
+  margin: 0;
+  font-size: 1.8cqw;
+  letter-spacing: 0.1em;
+  color: color-mix(in srgb, var(--cream) 55%, transparent);
+}
+
+.room-join {
+  display: flex;
+  align-items: center;
+  gap: 1.6cqw;
+}
+
+.room-code-input {
+  --frame-h: 5.6cqw;
+  width: 26cqw;
+  padding: 0 1.2cqw;
+
+  font-size: 3cqw;
+  text-align: center;
+  /* コードは4文字。読み違えないように広めに開ける */
+  letter-spacing: 0.32em;
+  text-indent: 0.32em;
+}
+
+.room-code-input::placeholder {
+  font-size: 2cqw;
+  letter-spacing: 0.06em;
+  color: color-mix(in srgb, var(--btn-label) 42%, transparent);
+}
+
+.room-code-input:focus {
+  outline: 0.22cqw solid color-mix(in srgb, var(--gold) 70%, transparent);
+  outline-offset: 0.9cqw;
+}
+
+.room-join-btn {
+  --frame-h: 5.2cqw;
+  width: 16cqw;
+
+  font-size: 2.6cqw;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  will-change: transform;
+  transition: transform 120ms ease, color 120ms ease, opacity 160ms ease;
+}
+
+.room-join-btn:hover:not(:disabled) {
+  color: var(--red);
+  transform: translateY(-0.6cqw) scale(1.03);
+}
+
+.room-join-btn:active:not(:disabled) { transform: translateY(0.2cqw) scale(1); }
+.room-join-btn:disabled { opacity: 0.45; cursor: default; }
+
+.room-join-btn:focus-visible {
+  outline: 0.4cqw solid var(--gold);
+  outline-offset: 0.7cqw;
+}
+
+/* ---------------------------------------------------------
+   部屋コードの札
+
+   右上。押すとコピーできる。Prompt 入力と切り替え画面は上段が
+   カードで埋まるので、そこでは JS 側が引っ込める（codeChip.js）。
+   --------------------------------------------------------- */
+.code-chip {
+  position: absolute;
+  right: 2.2cqw;
+  top: 2cqw;
+  z-index: 2;
+
+  display: flex;
+  align-items: baseline;
+  gap: 0.8cqw;
+  padding: 0.7cqw 1.3cqw;
+
+  background: color-mix(in srgb, var(--ink) 78%, transparent);
+  border: 0.22cqw solid color-mix(in srgb, var(--cream) 45%, transparent);
+  border-radius: 0.8cqw;
+
+  font-family: inherit;
+  color: var(--cream);
+  cursor: pointer;
+  transition: border-color 140ms ease, transform 120ms ease;
+}
+
+.code-chip[hidden] { display: none; }
+
+.code-chip:hover  { border-color: var(--gold); transform: scale(1.03); }
+.code-chip:active { transform: scale(1); }
+
+.code-chip:focus-visible {
+  outline: 0.3cqw solid var(--gold);
+  outline-offset: 0.5cqw;
+}
+
+.code-chip.is-copied { border-color: var(--gold); }
+
+.code-chip__label {
+  font-size: 1.2cqw;
+  letter-spacing: 0.1em;
+  color: color-mix(in srgb, var(--cream) 65%, transparent);
+}
+
+.code-chip__value {
+  font-size: 2.2cqw;
+  line-height: 1;
+  letter-spacing: 0.18em;
+  /* 末尾の字間ぶん、見た目の中心をそろえる */
+  margin-right: -0.18em;
+}
+
+/* ---------------------------------------------------------
+   「先に始める」（ホストだけ）
+   待ち合わせ中、入力欄の代わりにこの位置へ出す
+   --------------------------------------------------------- */
+.prompt-start {
+  position: absolute;
+  left: 34.76cqw;
+  top: 30.58cqw;
+  width: 33.40cqw;
+  height: 11.27cqw;
+
+  display: grid;
+  place-items: center;
+
+  font-family: inherit;
+  font-size: 2.2cqw;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+  cursor: pointer;
+  transition: transform 120ms ease, color 120ms ease;
+}
+
+.prompt-start[hidden] { display: none; }
+
+.prompt-start:hover:not(:disabled) { color: var(--red); transform: scale(1.02); }
+.prompt-start:active:not(:disabled) { transform: scale(1); }
+.prompt-start:disabled { opacity: 0.6; cursor: default; }
+
+.prompt-start:focus-visible {
+  outline: 0.35cqw solid var(--gold);
+  outline-offset: 0.6cqw;
+}
+
+/* ホストが「先に始める」を出しているあいだ、入力欄は引っ込める */
+.prompt.is-waiting .prompt-start:not([hidden]) ~ .prompt-input { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .code-chip, .room-join-btn, .prompt-start { transition: none; }
+  .code-chip:hover, .room-join-btn:hover:not(:disabled),
+  .prompt-start:hover:not(:disabled) { transform: none; }
+}
+
+/* ---------------------------------------------------------
+   通知（「○○が参加しました」など）
+
+   .scene の外・.stage の直下に置いてある。どの画面に居ても同じ場所に
+   出したいため。左下なのは、上のカード・下中央のヒント・右下の BGM トグルの
+   どれとも重ならないから。
+   --------------------------------------------------------- */
+.toasts {
+  position: absolute;
+  left: 2.2cqw;
+  bottom: 2cqw;
+
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.7cqw;
+
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.toast {
+  padding: 0.8cqw 1.4cqw;
+
+  background: color-mix(in srgb, var(--ink) 78%, transparent);
+  border: 0.22cqw solid color-mix(in srgb, var(--cream) 45%, transparent);
+  border-radius: 0.8cqw;
+
+  font-size: 1.5cqw;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  color: var(--cream);
+  white-space: nowrap;
+
+  animation: toast-in 260ms cubic-bezier(.2, .9, .3, 1.05) both;
+}
+
+.toast.is-leaving {
+  animation: toast-out 300ms ease both;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(-1.5cqw); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes toast-out {
+  from { opacity: 1; }
+  to   { opacity: 0; transform: translateY(-0.8cqw); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast, .toast.is-leaving { animation: none; }
 }
 
 /* ---------------------------------------------------------
