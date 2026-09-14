@@ -41,7 +41,7 @@ API_PREFIX = "/api/"
 PUBLIC_DIRS = ("assets", "src")
 
 #: 直下に置いてよいファイル
-PUBLIC_FILES = ("index.html",)
+PUBLIC_FILES = ("index.html", "manifest.webmanifest")
 
 #: 公開時だけキャッシュを許す拡張子。中身が変わらないものだけ
 CACHEABLE_EXT = {".png", ".jpg", ".jpeg", ".gif", ".webp",

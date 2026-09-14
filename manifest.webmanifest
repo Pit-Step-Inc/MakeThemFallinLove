@@ -1,0 +1,12 @@
+{
+  "name": "Make Them Fall (in love)",
+  "short_name": "Make Them Fall",
+  "start_url": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0b0a0c",
+  "theme_color": "#0b0a0c",
+  "icons": [
+    { "src": "assets/UI/title.png", "sizes": "1774x887", "type": "image/png" }
+  ]
+}

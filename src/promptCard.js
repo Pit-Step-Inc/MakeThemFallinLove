@@ -45,7 +45,18 @@ export function buildPromptCard({ interactive = true } = {}) {
  * @param {{author: string, text: string, likes: number}} data
  */
 export function fillPromptCard(els, { author, text, likes }) {
-  els.name.textContent = author;
+  // **差出人が無い札もある。** AI が考えたお題（ランダムイベントと、
+  // 誰も投稿しなかった回）には書き手が居ない。名前の行に加えて
+  // **いいねも出さない** ── 誰も押しようがないので、0 という数字も
+  // 押せないボタンも意味を持たないため。
+  // 投稿された Prompt には必ず投稿者の名前が入るので、入力画面の札は
+  // これまでどおり名前もいいねも出る
+  const anonymous = !author;
+
+  els.name.textContent = author ?? "";
+  els.name.hidden = anonymous;
   els.body.textContent = text;
   els.likes.textContent = String(likes);
+  els.likes.hidden = anonymous;
+  els.like.hidden = anonymous;
 }

@@ -23,8 +23,10 @@
  *
  * BGM は 1 に入るところで EndRoll に差し替えて、最後まで流しっぱなし。
  *
- * 回想は放っておいても進むが、押せば先へ送れる。スタッフロールは
- * CSS のアニメーションが終わったところで The End に移る。
+ * **未来の3場面は自動では進まない。**「つぎへ」を押すまでその年のまま待つ
+ * （読む速さは人それぞれなので、時間で送ると読み終わらないうちに次へ行く）。
+ * TOP PLAYERS から先は放っておいても流れ、スタッフロールは CSS の
+ * アニメーションが終わったところで The End に移る。
  */
 
 import { t } from "./i18n.js";
@@ -32,11 +34,30 @@ import { loadClip, createSpriteAnim } from "./spriteAnim.js";
 
 const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)");
 
-/** 回想1枚を映しておく時間 ms */
+/**
+ * TOP PLAYERS を映しておく時間 ms。**飛ばせないので、この時間ぶん必ず出る。**
+ * **未来の3場面はここでは使わない**（時間ではなく「つぎへ」で送る）
+ */
 const MEMORY_MS = 6000;
 
+/** 未来の場面の年（tools/story.py の FUTURE_YEARS と揃える） */
+const FUTURE_YEARS = [10, 20, 30];
+
+/**
+ * 未来の立ち絵のありか。**年ごとに描き下ろした1枚絵**で、
+ * ふだんのコマ送りのスプライトとは別物（assets/<名前>/future/）。
+ * 知らない年が来たら最初の年の絵にしておく（絵が消えるよりはよい）。
+ *
+ * @param {"Martin"|"Catherine"} character
+ * @param {number} year
+ */
+function futurePortrait(character, year) {
+  const n = FUTURE_YEARS.includes(year) ? year : FUTURE_YEARS[0];
+  return `assets/${character}/future/${n}_years_later_${character.toLowerCase()}.png`;
+}
+
 /** スタッフロールが流れ切るまで ms（style.css の credits-roll と揃える） */
-const CREDITS_MS = 32000;
+const CREDITS_MS = 16000;
 
 /** The End を出してから操作を受けるまで ms。押しっぱなしで飛ばされないように */
 const END_SETTLE_MS = 1200;
@@ -85,20 +106,19 @@ export function initEndingScene({ lang, sfx, onMemory, onBoard, onBackToTitle })
   const memoryScene = document.getElementById("scene-memory");
   const backdrop = /** @type {HTMLImageElement} */ (document.getElementById("memoryBackdrop"));
   const yearEl = document.getElementById("memoryYear");
+  const nextBtn = /** @type {HTMLButtonElement} */ (document.getElementById("memoryNext"));
   const memoryCast = {
     martin: {
-      character: "Martin", clip: "martin_talk03",
-      canvas: document.getElementById("memoryMartin"),
+      character: "Martin",
+      portrait: /** @type {HTMLImageElement} */ (document.getElementById("memoryMartin")),
       bubble: document.getElementById("memoryBubbleMartin"),
       text: document.getElementById("memoryTextMartin"),
-      anim: null,
     },
     catherine: {
-      character: "Catherine", clip: "catherine_talk01",
-      canvas: document.getElementById("memoryCatherine"),
+      character: "Catherine",
+      portrait: /** @type {HTMLImageElement} */ (document.getElementById("memoryCatherine")),
       bubble: document.getElementById("memoryBubbleCatherine"),
       text: document.getElementById("memoryTextCatherine"),
-      anim: null,
     },
   };
 
@@ -124,19 +144,28 @@ export function initEndingScene({ lang, sfx, onMemory, onBoard, onBackToTitle })
   /** いま待っているものを解く。押されたら先へ送るために持っておく */
   let release = null;
 
-  /** 立ち絵は一度読めば使い回す */
+  /**
+   * いま待っているものを「つぎへ」でしか進められないか。
+   * **未来の3場面がこれ。** 画面のどこを押しても進むと、読んでいる途中で
+   * 誰かが触っただけで次の年へ飛んでしまう
+   */
+  let buttonOnly = false;
+
+  /**
+   * 未来の立ち絵を先読みしておく。
+   *
+   * 場面が変わるたびに読みに行くと、1枚 1.3MB あるので切り替わりで
+   * 立ち絵が消える。prepare() はラストシーンの独り言のあいだに呼ばれるので、
+   * そこで6枚とも読み終えておく。読めなかった絵があっても締めは止めない。
+   */
   const castReady = Promise.all(
-    Object.values(memoryCast).map(async (c) => {
-      try {
-        const clip = await loadClip(c.character, c.clip);
-        c.anim = createSpriteAnim(c.canvas, clip);
-        c.anim.pose();                 // 口は閉じたまま。回想なので喋らせない
-        c.canvas.hidden = false;
-      } catch (err) {
-        console.error("[ending] failed to load", c.clip, err);
-        c.canvas.hidden = true;
-      }
-    })
+    FUTURE_YEARS.flatMap((year) =>
+      Object.values(memoryCast).map((c) => new Promise((resolve) => {
+        const img = new Image();
+        img.onload = img.onerror = () => resolve();
+        img.src = futurePortrait(c.character, year);
+      }))
+    )
   );
 
   const walkersReady = Promise.all(
@@ -164,9 +193,14 @@ export function initEndingScene({ lang, sfx, onMemory, onBoard, onBackToTitle })
 
   /**
    * 決まった時間だけ待つ。**待っているあいだに押されたら即座に返る。**
-   * 回想を飛ばしたい人を待たせないため。
+   * 待たされたくない人のため。
+   *
+   * @param {{skippable?: boolean}} [opts]
+   *        skippable: false にすると押しても飛ばせない。
+   *        **スタッフロールがこれ。** 名前が出ている場所なので、
+   *        画面のどこかに触れただけで流し飛ばされないようにしてある
    */
-  function hold(ms) {
+  function hold(ms, { skippable = true } = {}) {
     return new Promise((resolve) => {
       const done = () => {
         clearTimeout(timer);
@@ -174,18 +208,48 @@ export function initEndingScene({ lang, sfx, onMemory, onBoard, onBackToTitle })
         resolve();
       };
       const timer = setTimeout(done, ms);
-      release = done;
+      // 飛ばせない待ちのあいだは、前の待ちの解除役を残さない
+      release = skippable ? done : null;
     });
   }
 
-  /** 画面のどこを押しても、いま待っているものを終わらせる */
+  /**
+   * **押されるまで待つ。** 未来の3場面はここで止まる。
+   *
+   * 時間で送ると、読み終わらないうちに次の年へ行ってしまう。
+   * ボタンのほかに、画面のどこを押しても・Enter でも進める（skip と同じ口）。
+   */
+  function waitForNext() {
+    nextBtn.textContent = t(uiLang).next;
+    nextBtn.hidden = false;
+    buttonOnly = true;
+    // キーだけで遊んでいる人がそのまま Enter で送れるように焦点を当てる。
+    // マウスで進む人には輪郭は出ない（:focus-visible なので）
+    nextBtn.focus();
+    return new Promise((resolve) => {
+      release = () => {
+        release = null;
+        buttonOnly = false;
+        nextBtn.hidden = true;
+        resolve();
+      };
+    });
+  }
+
+  /**
+   * 画面のどこを押しても、いま待っているものを終わらせる。
+   * **「つぎへ」待ちのあいだは効かない**（そのときはボタンだけが進める）
+   */
   function skip() {
-    if (!visible) return;
+    if (!visible || buttonOnly) return;
     release?.();
   }
 
   function onKeyDown(e) {
     if (!visible || e.isComposing) return;
+    // 「つぎへ」に焦点があるときは横取りしない。
+    // preventDefault するとボタン本来の Enter / Space が効かなくなる
+    if (e.target === nextBtn) return;
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       skip();
@@ -193,6 +257,13 @@ export function initEndingScene({ lang, sfx, onMemory, onBoard, onBackToTitle })
   }
 
   memoryScene.addEventListener("click", skip);
+  // 画面全体のクリックと二重に拾わないよう、ここで止めてから送る。
+  // skip() は「つぎへ」待ちでは効かないので、直に解く
+  nextBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (!visible) return;
+    release?.();
+  });
   endScene.addEventListener("click", skip);
   window.addEventListener("keydown", onKeyDown);
 
@@ -217,6 +288,9 @@ export function initEndingScene({ lang, sfx, onMemory, onBoard, onBackToTitle })
     yearEl.style.animation = "";
 
     for (const [who, c] of Object.entries(memoryCast)) {
+      // 立ち絵はこの場面の年のもの。10年後・20年後・30年後で描き分けてある
+      c.portrait.src = futurePortrait(c.character, scene.year);
+
       const line = (scene.lines ?? []).find((l) => l.who === who);
       c.text.textContent = line?.text ?? "";
       c.bubble.hidden = !line;
@@ -294,6 +368,7 @@ export function initEndingScene({ lang, sfx, onMemory, onBoard, onBackToTitle })
       notOverTitle.textContent = t(uiLang).notOverTitle;
       notOverBody.textContent = t(uiLang).notOverBody;
       await onBoard?.();               // 締めと同じロゴ＋歩く二人の画面
+      nextBtn.hidden = true;
       showPanel("unfinished");
       walkers.forEach(playWalker);
     },
@@ -305,10 +380,12 @@ export function initEndingScene({ lang, sfx, onMemory, onBoard, onBackToTitle })
     async play(ending) {
       visible = true;
 
+      // **未来の3場面は時間で送らない。** 読み終えた人が「つぎへ」を
+      // 押すまでその年のまま待つ（TOP PLAYERS から先は今までどおり流れる）
       for (const scene of ending?.scenes ?? []) {
         fillScene(scene);
         await onMemory?.(scene);
-        await hold(MEMORY_MS);
+        await waitForNext();
       }
 
       await onBoard?.();
@@ -316,15 +393,18 @@ export function initEndingScene({ lang, sfx, onMemory, onBoard, onBackToTitle })
       fillBoard(ending?.topPlayers ?? []);
       showPanel("board");
       walkers.forEach(playWalker);
-      await hold(MEMORY_MS);
+      // スタッフロールと同じく飛ばせない。上位3人の名前が出ている場所なので、
+      // 誰かが画面に触れただけで消えてしまわないようにする
+      await hold(MEMORY_MS, { skippable: false });
 
       fillCredits();
       showPanel("credits");
-      // 流れ切るまで。途中で押されたら飛ばせる
+      // **流れ切るまで飛ばせない。** 名前が出ている場所なので、
+      // 誰かが画面に触れただけで飛んでしまわないようにする
       creditsRoll.style.animation = "none";
       void creditsRoll.offsetWidth;            // 巻き戻してから掛け直す
       creditsRoll.style.animation = "";
-      await hold(reduceMotion?.matches ? 4000 : CREDITS_MS);
+      await hold(reduceMotion?.matches ? 4000 : CREDITS_MS, { skippable: false });
 
       showPanel("end");
       endLabel.textContent = t(uiLang).theEnd;
@@ -335,8 +415,10 @@ export function initEndingScene({ lang, sfx, onMemory, onBoard, onBackToTitle })
     stop() {
       visible = false;
       release = null;
+      buttonOnly = false;
+      nextBtn.hidden = true;
       walkers.forEach((a) => a.stop());
-      Object.values(memoryCast).forEach((c) => c.anim?.stop());
+      // 未来の立ち絵は1枚絵なので、止めるものは無い
     },
   };
 }

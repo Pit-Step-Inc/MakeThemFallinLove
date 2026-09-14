@@ -515,17 +515,31 @@ body {
   white-space: pre-line;
 
   font-size: 1.62cqw;
-  line-height: 1.6;
+  /* 1.6 だと3行目が枠からはみ出す。40文字が3行で収まる高さにしてある */
+  line-height: 1.45;
   letter-spacing: 0.02em;
   color: var(--ink);
 
-  /* 英語は空白でしか折り返せないので、空白の無い長い語が来ると
-     枠（overflow: hidden）からはみ出して黙って切れる。
-     **break-word では効かない。** 吹き出しは display:grid + place-items:center で、
-     中の <p> が「切れない語の幅」のまま広がってしまい、折り返す余地が生まれない。
-     anywhere は最小幅の計算にも効くので、そこで初めて枠に収まる。
-     実文（英語・日本語）と明示改行の見え方は変わらないことを実測済み */
-  overflow-wrap: anywhere;
+  /* **枠の内側いっぱいに広げる。** 吹き出しは display:grid + place-items:center
+     なので、指定しないと中の <p> が max-content（＝折り返さない幅）のまま
+     広がってしまい、折り返す余地が生まれない。
+     以前はこれを `overflow-wrap: anywhere` で回避していたが、anywhere は
+     **日本語の禁則処理まで無効にする**ので「ダ／ーリン」「ずっと頼／りに」の
+     ように語や長音の途中で割れていた。幅を決めてしまえば anywhere は要らない */
+  width: 100%;
+
+  /* 語の途中では折り返さない。
+     空白の無い長い語だけ、どうしても収まらないときに割る */
+  overflow-wrap: break-word;
+
+  /* 既定の line-break: auto は「ダ／ーリン」のように長音や小書き仮名の
+     前で割れる。strict にすると、それらを行頭に置かなくなる */
+  line-break: strict;
+
+  /* **日本語を文節で折り返す。**「ずっと頼／りに」のように語の途中で
+     割れるのを避ける（Chrome 119 以降。効かない環境では従来どおりの
+     折り返しに戻るだけで、崩れはしない） */
+  word-break: auto-phrase;
 }
 
 /* まだ出していないぶん。display や visibility で消すと行数が変わって
@@ -921,9 +935,17 @@ body {
   right: 0;
 
   margin: 0;
+  /* 未来の生成中の見出し（「あれから10年後…」/「Where are Martin and
+     Catherine ten years later?」）は 87cqw ほどあり、素のままだと
+     ステージの端に触れる。左右に逃げを作り、フォントの差で溢れたときは
+     2行に折り返させる（この見出しのときだけ中央の札は出ないので、
+     2行になっても何とも重ならない） */
+  padding: 0 4cqw;
+  text-wrap: balance;
+
   text-align: center;
   font-size: 3.2cqw;
-  line-height: 1;
+  line-height: 1.25;
   letter-spacing: 0.08em;
   color: #FFFFFF;
   /* 背景の白い筋に重なると読めなくなるので、暗い縁を薄く敷く */
@@ -989,7 +1011,15 @@ body {
 .room-code-input {
   --frame-h: 5.6cqw;
   width: 26cqw;
-  padding: 0 1.2cqw;
+  /*
+   * **下にだけ余白を足して、字を枠の真ん中へ上げる。**
+   * line-height: 1 だと、この書体は字の上下（fontBoundingBox）が 1em を
+   * 超えるぶんベースラインが下がり、しかもコードも「ルームコード」も
+   * 下に伸びる字が無いので、字が枠の中で下寄りに出る。
+   * box-sizing: border-box なので、下の余白ぶん中身が縮んで字が上がる。
+   * 実測のずれ（3.0px = 0.19cqw）の2倍を下に入れて打ち消している
+   */
+  padding: 0 1.2cqw 0.38cqw;
 
   font-size: 3cqw;
   text-align: center;
@@ -1000,8 +1030,28 @@ body {
 
 .room-code-input::placeholder {
   font-size: 2cqw;
+  /* **自分の字の大きさで行を組む。** 入力欄側の line-height（3cqw ぶん）を
+     引き継ぐと、行の高さは 3cqw・字は 2cqw になり、字がベースラインに
+     つられて枠の下寄りに出る */
+  line-height: 1;
   letter-spacing: 0.06em;
   color: color-mix(in srgb, var(--btn-label) 42%, transparent);
+}
+
+/*
+ * **字間の逃げは、字間ぶんだけ。**
+ * 下の text-indent はコードの 0.32em の字間を打ち消すためのもので、
+ * 字間が 0.06em の placeholder にそのまま掛かると右へ寄りすぎる
+ */
+.room-code-input:placeholder-shown {
+  text-indent: 0.06em;
+  /*
+   * **placeholder のほうが深く沈む。** Chrome は placeholder を
+   * 入力欄の値と同じベースラインに置くので、字だけ小さい placeholder は
+   * その分そっくり下に残る（計算だけだと合わないので、0.19 / 0.45 / 0.70 /
+   * 0.95cqw を並べて描かせ、枠の中心に乗るものを選んだ）
+   */
+  padding-bottom: 0.7cqw;
 }
 
 .room-code-input:focus {
@@ -1048,7 +1098,12 @@ body {
   display: flex;
   align-items: baseline;
   gap: 0.8cqw;
-  padding: 0.7cqw 1.3cqw;
+  /* **上下は同じ値にしない。** 「コード」と4文字のコードはどちらも
+     下に伸びる字が無いので、行の箱の下（ベースラインより下）が丸ごと余り、
+     0.7cqw ずつにすると字が下寄りに見える。上を削って下へ回す。
+     字の枠（actualBoundingBox）で測ると 0.64/0.76 で釣り合うが、
+     実際に見ると まだ下寄りだったので、上下 5段階を並べて描かせて選んだ */
+  padding: 0.29cqw 1.3cqw 1.11cqw;
 
   background: color-mix(in srgb, var(--ink) 78%, transparent);
   border: 0.22cqw solid color-mix(in srgb, var(--cream) 45%, transparent);
@@ -1074,7 +1129,15 @@ body {
 
 .code-chip__label {
   font-size: 1.2cqw;
+  /* 行の高さは自分の字の大きさに合わせる。normal のままだと
+     行間ぶんがベースラインの下に足されて、札が下へ伸びる */
+  line-height: 1;
   letter-spacing: 0.1em;
+
+  /* **ベースラインからずらして、見出しは上・コードは下へ振り分ける。**
+     position: relative の見た目のずらしなので、札の大きさは変わらない */
+  position: relative;
+  top: -0.14cqw;
   color: color-mix(in srgb, var(--cream) 65%, transparent);
 }
 
@@ -1082,6 +1145,10 @@ body {
   font-size: 2.2cqw;
   line-height: 1;
   letter-spacing: 0.18em;
+
+  /* 見出しと反対向きに、同じぶんだけ下げる（上の .code-chip__label 参照） */
+  position: relative;
+  top: 0.25cqw;
   /* 末尾の字間ぶん、見た目の中心をそろえる */
   margin-right: -0.18em;
 }
@@ -1119,13 +1186,124 @@ body {
   outline-offset: 0.6cqw;
 }
 
-/* ホストが「先に始める」を出しているあいだ、入力欄は引っ込める */
-.prompt.is-waiting .prompt-start:not([hidden]) ~ .prompt-input { display: none; }
+/*
+ * 待ち合わせの札。**ホスト以外**に、「先に始める」と同じ枠で出す。
+ * 押せるものではないので、hover も focus も付けない
+ */
+.prompt-wait {
+  position: absolute;
+  left: 34.76cqw;
+  top: 30.58cqw;
+  width: 33.40cqw;
+  height: 11.27cqw;
+
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 1.1cqw;
+  margin: 0;
+  padding: 0 2.4cqw;
+
+  text-align: center;
+  color: var(--ink);
+}
+
+.prompt-wait[hidden] { display: none; }
+
+.prompt-wait__text {
+  font-size: 1.75cqw;
+  line-height: 1.3;
+  letter-spacing: 0.04em;
+}
+
+/* 揃った人数（2/3 など）。数字の幅が揺れないように等幅で */
+.prompt-wait__count {
+  font-size: 2.4cqw;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ホストが「先に始める」を、ホスト以外が待ち合わせの札を出しているあいだ、
+   入力欄は引っ込める（同じ場所に重なるため） */
+.prompt.is-waiting .prompt-start:not([hidden]) ~ .prompt-input,
+.prompt.is-waiting .prompt-wait:not([hidden]) ~ .prompt-input { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
   .code-chip, .room-join-btn, .prompt-start { transition: none; }
   .code-chip:hover, .room-join-btn:hover:not(:disabled),
   .prompt-start:hover:not(:disabled) { transform: none; }
+}
+
+/* ---------------------------------------------------------
+   縦向きのときの案内（src/rotate.js）
+
+   .stage の外・画面いっぱい。ステージは 16:9 ひとつなので、
+   縦向きだと細い帯になって遊べない。横にしてもらうまで覆う。
+   --------------------------------------------------------- */
+.rotate {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4vh;
+  /* 切り欠きとホームバーを避ける */
+  padding: max(4vh, env(safe-area-inset-top, 0px)) 6vw
+           max(4vh, env(safe-area-inset-bottom, 0px));
+
+  background: var(--ink);
+  text-align: center;
+  color: var(--cream);
+}
+
+.rotate[hidden] { display: none; }
+
+/* 端末の形。横倒しになる動きで「回してほしい」と伝える */
+.rotate__icon {
+  margin: 0;
+  /* 縦画面でしか出さないので vw が短辺。vh にも上限を付けて、
+     妙な比率の窓でも縦に溢れないようにする */
+  font-size: min(16vw, 12vh);
+  line-height: 1;
+  color: color-mix(in srgb, var(--cream) 70%, transparent);
+  animation: rotate-hint 2400ms ease-in-out infinite;
+}
+
+@keyframes rotate-hint {
+  0%, 30%   { transform: rotate(0deg); }
+  55%, 85%  { transform: rotate(-90deg); }
+  100%      { transform: rotate(0deg); }
+}
+
+.rotate__text {
+  margin: 0;
+  font-size: min(5.5vw, 4vh);
+  line-height: 1.5;
+  letter-spacing: 0.04em;
+}
+
+.rotate__btn {
+  --frame-h: min(12vw, 9vh);
+  width: 60vw;
+  font-size: min(4.4vw, 3.2vh);
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+.rotate__btn[hidden] { display: none; }
+
+.rotate__hint {
+  margin: 0;
+  font-size: min(3.6vw, 2.6vh);
+  line-height: 1.5;
+  color: color-mix(in srgb, var(--cream) 55%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rotate__icon { animation: none; transform: rotate(-90deg); }
 }
 
 /* ---------------------------------------------------------
@@ -1309,6 +1487,83 @@ body {
   display: block;
 }
 
+/*
+ * 未来の二人は1枚絵（1122x1402 = 比 0.800）で、ふだんの立ち絵のコマ
+ * （Martin 500x726 = 0.689 / Catherine 574x738 = 0.778）と比が違う。
+ * .portrait--* の寸法をそのまま使うと横に潰れるので、
+ * **高さと足元と中心をそろえたまま、幅だけ比に合わせ直す。**
+ * こうすると二人の大きさも立ち位置もふだんの会話と同じに見える。
+ */
+/*
+ * 未来の立ち絵。6枚とも同じ 1122x1402 だが、**絵の中の人物の大きさが違う。**
+ * 不透明部分を測ると
+ *   Martin    … 高さ 約1173px・下端 y=1322（下に 80px の余白）
+ *   Catherine … 高さ 約1279px・下端 y=1359
+ * で、Martin のほうが 9% ほど小さく、足元も浮いている。
+ * 枠を同じにすると Martin だけ小さく・宙に浮いて見えるので、
+ * **画面に出る人物の高さと足元がそろうように枠のほうを補正する。**
+ */
+/*
+ * **足元を画面の下端まで落とす。** 絵の下には透明な余白があり
+ * （Martin は 80px、Catherine は年ごとに 18/62/50px）、そのぶん
+ * 二人が宙に浮いて背景との間に隙間ができていた。
+ * 3枚のうちいちばん余白が大きいものに合わせて沈めてある
+ * （Catherine の10年後だけ 1cqw ほど裾が画面外に出るが、
+ *  もともと腰で切れている絵なので見え方は変わらない）
+ */
+.scene--memory .portrait--catherine {
+  left: 71.76cqw;            /* 人物の中心が 84.9cqw に来る */
+  bottom: -1.44cqw;
+  width: 26cqw;
+  height: 32.49cqw;          /* 26 ÷ 0.800（元画像の比） */
+}
+
+.scene--memory .portrait--martin {
+  left: 4.46cqw;             /* 人物の中心が 18.45cqw に来る */
+  bottom: -2.02cqw;
+  /* 人物の高さが Catherine と同じ 29.6cqw になる大きさ */
+  width: 28.35cqw;
+  height: 35.42cqw;
+}
+
+/*
+ * 未来の場面の送り。**自動送りをやめて、押されるまで待つ。**
+ * 立ち絵（足元 -0.3cqw）と吹き出し（〜38.8cqw）のどちらにも掛からない
+ * 下寄りの中央に置く
+ */
+.memory-next {
+  position: absolute;
+  left: 39.5cqw;
+  right: 39.5cqw;
+  /* 吹き出しの下端が 48.99cqw、ステージの下端が 56.25cqw。
+     その間に置く（44.5cqw だと Catherine の吹き出しに掛かる） */
+  top: 50.2cqw;
+
+  --frame-h: 4.6cqw;
+  font-size: 1.95cqw;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  will-change: transform;
+  transition: transform 120ms ease, color 120ms ease;
+
+  animation: day-in 500ms 200ms ease both;
+}
+
+.memory-next[hidden] { display: none; }
+
+.memory-next:hover  { color: var(--red); transform: translateY(-0.5cqw) scale(1.03); }
+.memory-next:active { transform: translateY(0.2cqw) scale(1); }
+
+.memory-next:focus-visible {
+  outline: 0.35cqw solid var(--gold);
+  outline-offset: 0.6cqw;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .memory-next { animation: none; transition: none; }
+  .memory-next:hover { transform: none; }
+}
+
 /* 何年後かの見出し。中央上、吹き出し（top 28.6cqw〜）に掛からない位置 */
 .memory-year {
   position: absolute;
@@ -1427,7 +1682,7 @@ body {
 
 .credits__roll {
   /* 下端の外から始めて、全部が上へ抜けるまで動かす */
-  animation: credits-roll 32000ms linear both;
+  animation: credits-roll 16000ms linear both;
 }
 
 .credits__heading {

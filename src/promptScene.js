@@ -73,6 +73,9 @@ export function initPromptScene({ lang, sfx, room, onTimeUp }) {
   const inputEl = /** @type {HTMLInputElement} */ (document.getElementById("promptInput"));
   const inputLabelEl = document.getElementById("promptInputLabel");
   const startEl = /** @type {HTMLButtonElement} */ (document.getElementById("promptStart"));
+  const waitEl      = document.getElementById("promptWait");
+  const waitTextEl  = document.getElementById("promptWaitText");
+  const waitCountEl = document.getElementById("promptWaitCount");
 
   let uiLang = lang;
   let visible = false;
@@ -157,6 +160,15 @@ export function initPromptScene({ lang, sfx, room, onTimeUp }) {
     // 席を立った人が居ると全員が揃わない。ホストだけ先へ進められる
     startEl.hidden = !(waiting && state.isHost);
     startEl.textContent = s.startNow;
+
+    // **先に着いたのがホスト以外だったとき。** ホストには上の「先に始める」が
+    // 出るが、それ以外の人には何も出ず、入力欄が薄いだけで理由が分からない。
+    // 同じ枠に「ほかのプレイヤーを待っています」と揃った人数を出す
+    waitEl.hidden = !(waiting && !state.isHost);
+    if (!waitEl.hidden) {
+      waitTextEl.textContent = s.waitingOthers;
+      waitCountEl.textContent = `${state.ready ?? 0}/${state.players ?? 1}`;
+    }
 
     root.classList.toggle("is-waiting", waiting);
     root.classList.toggle("is-sent", Boolean(state.myPromptId));
@@ -308,6 +320,7 @@ export function initPromptScene({ lang, sfx, room, onTimeUp }) {
       inputEl.disabled = false;
       root.classList.remove("is-over", "is-sent", "is-waiting");
       startEl.hidden = true;
+      waitEl.hidden = true;
       countEl.classList.remove("is-low");
       countEl.textContent = String(TIME_LIMIT);
     },
@@ -334,6 +347,7 @@ export function initPromptScene({ lang, sfx, room, onTimeUp }) {
       visible = false;
       stopTimers();
       root.hidden = true;
+      waitEl.hidden = true;
     },
 
     /** @returns {{author: string, text: string, likes: number}[]} いいね順の投稿 */

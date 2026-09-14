@@ -161,7 +161,7 @@ BGM_RE = re.compile(r"bgm\s*[:：]\s*([A-Za-z]+)", re.IGNORECASE)
 #: 1回ぶんの親密度の増減の幅。assets/Prompt/002.txt で同じ範囲を指示しているが、
 #: 外れた値が返ってくることがあるのでこちらでも収める。
 #: 0（Affinity 行が無かった＝増減なし）はそのまま通す
-AFFINITY_UP = (20, 50)
+AFFINITY_UP = (10, 40)
 AFFINITY_DOWN = (10, 20)
 
 #: イベントでの増減の幅。**1日ぶんの展開より小さく取る。**
@@ -174,6 +174,19 @@ EVENT_AFFINITY_DOWN = (5, 10)
 #: 鍵らしき文字列。OpenAI は 401 のときエラー本文に鍵の一部を混ぜて返すことがあり、
 #: その本文は部屋に入って**全員のポーリングに乗る**（rooms.py の story.error）。
 KEY_LIKE_RE = re.compile(r"sk-[A-Za-z0-9_-]{8,}")
+
+#: 絵が**安全側で弾かれた**ときの文言。OpenAI は 400 でこれを返す。
+#: 例: `safety_violations=[sexual]` / `Your request was rejected by the safety system.`
+#: 会話のほうは通ってしまうので、そのまま進むと背景だけ前の回のまま残る
+BLOCKED_RE = re.compile(
+    r"safety[ _]system|safety_violations|moderation_blocked|content[ _]policy",
+    re.IGNORECASE,
+)
+
+
+def is_blocked(error):
+    """絵が安全側で弾かれたか。**お題そのものが描けない**ので、作り直すしかない"""
+    return bool(error) and bool(BLOCKED_RE.search(str(error)))
 
 
 def _safe_error(text):
@@ -638,6 +651,10 @@ def generate(winner, stem, lang="ja"):
         "image": out.get("image"),
         "took": {"script": out.get("script_sec"), "image": out.get("image_sec")},
     }
+
+    # 絵だけ安全側で弾かれた回。呼び出し側（rooms.py の _run_story）が
+    # お題ごと作り直せるように、理由を分けて知らせる
+    result["blocked"] = not result["image"] and is_blocked(out.get("image_error"))
 
     # 片方だけ落ちても、取れたほうは返す
     errors = [out[k] for k in ("script_error", "image_error") if k in out]
