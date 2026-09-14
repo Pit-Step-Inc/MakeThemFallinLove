@@ -43,6 +43,12 @@ PUBLIC_DIRS = ("assets", "src")
 #: 直下に置いてよいファイル
 PUBLIC_FILES = ("index.html", "manifest.webmanifest")
 
+#: **公開フォルダの中でも配らない場所。**
+#: assets/Prompt はお題の指示文（ゲームの中身そのもの）で、読むのは
+#: サーバーだけ（tools/story.py の rules() がファイルとして開く）。
+#: ブラウザからは一度も取りに行かないので、塞いでも遊びに影響しない。
+PRIVATE_PATHS = ("assets/Prompt",)
+
 #: 公開時だけキャッシュを許す拡張子。中身が変わらないものだけ
 CACHEABLE_EXT = {".png", ".jpg", ".jpeg", ".gif", ".webp",
                  ".ogg", ".m4a", ".wav", ".mp3", ".ttf", ".woff", ".woff2"}
@@ -152,7 +158,15 @@ class RangeRequestHandler(SimpleHTTPRequestHandler):
         rel = os.path.relpath(target, root)
         if rel.startswith(os.pardir):
             return False                     # ルートの外
-        head = rel.replace("\\", "/").split("/")[0]
+        rel = rel.replace("\\", "/")
+
+        # 公開フォルダの中でも塞いである場所が先。大文字小文字は
+        # Windows と Linux で扱いが違うので、揃えてから見る
+        low = rel.lower()
+        if any(low == d.lower() or low.startswith(d.lower() + "/") for d in PRIVATE_PATHS):
+            return False
+
+        head = rel.split("/")[0]
         return head in PUBLIC_DIRS or head in PUBLIC_FILES
 
     def send_head(self):
