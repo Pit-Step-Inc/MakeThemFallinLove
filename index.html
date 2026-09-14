@@ -7,6 +7,7 @@
 <meta name="description" content="Make Them Fall (in love) — タイトル画面">
 <link rel="icon" href="assets/UI/title.png">
 <link rel="preload" as="font" type="font/ttf" href="assets/font/DotGothic16/DotGothic16-Regular.ttf" crossorigin>
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="stylesheet" href="src/style.css">
 </head>
 <body>
@@ -208,8 +209,11 @@
 
       <img class="backdrop" id="memoryBackdrop" alt="" width="1792" height="1024">
 
-      <canvas class="portrait portrait--martin"    id="memoryMartin"    aria-hidden="true"></canvas>
-      <canvas class="portrait portrait--catherine" id="memoryCatherine" aria-hidden="true"></canvas>
+      <!-- 未来の二人だけは**1枚絵**。ふだんの立ち絵はコマ送りのスプライトだが、
+           10年後・20年後・30年後は歳を重ねた姿を描き下ろしてあるので、
+           そのまま静止画として置く（差し替えは src/endingScene.js） -->
+      <img class="portrait portrait--martin"    id="memoryMartin"    alt="" width="1122" height="1402">
+      <img class="portrait portrait--catherine" id="memoryCatherine" alt="" width="1122" height="1402">
 
       <span class="name-tag name-tag--martin"    id="memoryNameMartin">Martin</span>
       <span class="name-tag name-tag--catherine" id="memoryNameCatherine">Catherine</span>
@@ -224,6 +228,10 @@
       <div class="bubble bubble--catherine" id="memoryBubbleCatherine" hidden>
         <p class="bubble-text"><span id="memoryTextCatherine"></span></p>
       </div>
+
+      <!-- 10年後 → 20年後 → 30年後 の送り。**自動では進まない。**
+           読み終えた人が押すまで、その場面のまま待つ -->
+      <button type="button" class="pixel-frame memory-next" id="memoryNext" hidden></button>
 
     </section>
 
@@ -303,6 +311,14 @@
       <!-- 揃うのを待たずに始める。ホストにだけ出す -->
       <button type="button" class="pixel-panel prompt-start" id="promptStart" hidden></button>
 
+      <!-- 待ち合わせの札。**ホスト以外**に、入力欄と同じ場所へ出す。
+           先に着いた人は入力欄が薄くなるだけで理由が分からないため
+           （ホストには代わりに上の「先に始める」が出る） -->
+      <p class="pixel-panel prompt-wait" id="promptWait" hidden>
+        <span class="prompt-wait__text"  id="promptWaitText"></span>
+        <span class="prompt-wait__count" id="promptWaitCount"></span>
+      </p>
+
       <label class="pixel-panel prompt-input">
         <span class="sr-only" id="promptInputLabel"></span>
         <!-- 実際の上限は言語で変わる。promptScene.js が maxLength を入れ直す -->
@@ -340,6 +356,17 @@
     </button>
 
   </main>
+
+  <!-- ===== 縦向きのときの案内 ===== -->
+  <!-- 画面が縦のあいだだけ全面に出す。ページ側から端末の回転ロックは
+       外せないので、Android では「横画面にする」で全画面＋向きの固定を
+       試し、それが効かない端末では文章で案内するだけにする -->
+  <div class="rotate" id="rotateNotice" hidden>
+    <p class="rotate__icon" aria-hidden="true">▯</p>
+    <p class="rotate__text" id="rotateText"></p>
+    <button type="button" class="pixel-frame rotate__btn" id="rotateBtn" hidden></button>
+    <p class="rotate__hint" id="rotateHint"></p>
+  </div>
 
   <script type="module" src="src/main.js"></script>
 </body>

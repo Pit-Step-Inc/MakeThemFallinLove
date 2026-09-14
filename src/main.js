@@ -20,6 +20,7 @@ import { createCodeChip } from "./codeChip.js";
 import { createAffection, AFFINITY_MAX } from "./affection.js";
 import { createToaster } from "./toast.js";
 import { initEndingScene } from "./endingScene.js";
+import { initRotateNotice } from "./rotate.js";
 import { t } from "./i18n.js";
 
 const stage    = document.getElementById("stage");
@@ -36,7 +37,7 @@ let uiLang = loadLang() ?? (navigator.language?.startsWith("ja") ? "ja" : "en");
  */
 const OPENING_BACKDROPS = [
   "assets/background/background_shibuya_001.png",
-  "assets/background/background_shinjuku_001.png",
+  "assets/background/background_shinjuku_002.png",
   "assets/background/background_ikebukuro_001.png",
 ];
 
@@ -144,6 +145,9 @@ room.onEvent((event) => {
   if (event.type === "join") toaster.show(s.playerJoined(event.name));
   else if (event.type === "leave") toaster.show(s.playerLeft(event.name));
 });
+
+// 縦向きのスマホには、横にしてもらう案内を全面に出す
+const rotateNotice = initRotateNotice({ lang: uiLang });
 
 const sceneChange = initSceneChange({ lang: uiLang, sfx });
 
@@ -338,6 +342,7 @@ const title = initTitle({
     story.setLang(lang);
     lastScene.setLang(lang);
     promptScene.setLang(lang);
+    rotateNotice.setLang(lang);
     sceneChange.setLang(lang);
     ending.setLang(lang);
     // 生成される会話もこの言語で書かせる（部屋を建てるときサーバーへ送る）
@@ -525,10 +530,13 @@ async function playEnding() {
 
   // 10年後・20年後・30年後を作らせる。20秒ほどかかるので渦で待つ
   await sceneChange.prepare([]);
+  // **見出しは prepare() のあとすぐ。** prepare() は見出しを既定の
+  // 「次はどうなる？」に戻すので、画面を出してから差し替えると
+  // 一瞬だけそちらが見えてしまう
+  sceneChange.setStatus(t(uiLang).generatingFuture);
   await showScene("scene-change");
   lastScene.stop();
   sceneChange.start();
-  sceneChange.setStatus(t(uiLang).generating);
 
   let state = await room.future();
   for (let i = 0; i < 120 && state?.future?.status === "working"; i += 1) {
@@ -616,11 +624,28 @@ async function playEvent() {
   await showScene("scene-change");
   sceneChange.start();
   sceneChange.setStatus(t(uiLang).generating);
-  sceneChange.showHero({ author: t(uiLang).aiAuthor, text: made.text, likes: 0 });
+  sceneChange.showHero({ author: "", text: made.text, likes: 0 });
 
-  for (let i = 0; i < 120 && state?.event?.status === "working"; i += 1) {
+  // 絵が安全側で弾かれた回は、出来事ごと作り直される（tools/rooms.py の
+  // _run_event）。次の展開と同じで、決まったら札を出し直す。
+  // 作り直しが挟まると倍かかるので、待つ回数も倍に取ってある
+  let shownText = made.text;
+  let toldBlocked = false;
+
+  for (let i = 0; i < 240 && state?.event?.status === "working"; i += 1) {
     await new Promise((r) => setTimeout(r, 1000));
     state = await room.state();
+
+    const ev = state?.event;
+    if (ev?.blocked && !toldBlocked) {
+      toldBlocked = true;
+      console.warn("[event] image blocked, asking for another event");
+      sceneChange.setStatus(t(uiLang).generatingBlocked);
+    }
+    if (ev?.text && ev.text !== shownText) {
+      shownText = ev.text;
+      sceneChange.showHero({ author: "", text: ev.text, likes: 0 });
+    }
   }
 
   const done = state?.event ?? made;
@@ -651,24 +676,36 @@ async function playEvent() {
 async function playNextScene() {
   sceneChange.setStatus(t(uiLang).generating);
 
-  // 誰も Prompt を出さなかった回は、お題を AI が考える（tools/rooms.py の
-  // _run_story）。決まるのが渦を出したあとなので、届いたら中央に出す
-  const posted = promptScene.results().length > 0;
-  let heroShown = posted;
+  // お題が**途中で差し替わる回**がある（どちらも tools/rooms.py の _run_story）。
+  //   - 誰も Prompt を出さなかった回 … AI が出来事を考える
+  //   - 絵が安全側で弾かれた回       … お題ごと作り直す
+  // どちらも決まるのが渦を出したあとなので、届いたら中央の札を出し直す。
+  // 投稿があった回の初手は prepare() が出した札なので、それを起点にする
+  const posted = promptScene.results();
+  let shownWinner = posted.length ? posted[0].text : null;
+  let toldBlocked = false;
 
-  function showInvented(st) {
-    if (heroShown || !st?.story?.winner) return;
-    heroShown = true;
-    sceneChange.showHero({ author: t(uiLang).aiAuthor, text: st.story.winner, likes: 0 });
+  function followWinner(st) {
+    // 絵が描けずに作り直しているあいだは、その旨に見出しを差し替える
+    if (st?.story?.blocked && !toldBlocked) {
+      toldBlocked = true;
+      console.warn("[story] image blocked, asking for another event");
+      sceneChange.setStatus(t(uiLang).generatingBlocked);
+    }
+    const winner = st?.story?.winner;
+    if (!winner || winner === shownWinner) return;
+    shownWinner = winner;
+    sceneChange.showHero({ author: "", text: winner, likes: 0 });
   }
 
   let state = await room.story();
-  showInvented(state);
+  followWinner(state);
   // 出来上がるまで待つ。渦と SE は回ったままなので、待っている感じにはならない
-  for (let i = 0; i < 120 && state?.story?.status === "working"; i += 1) {
+  // （作り直しが挟まる回は倍かかるので、待つ回数も倍に取ってある）
+  for (let i = 0; i < 240 && state?.story?.status === "working"; i += 1) {
     await new Promise((r) => setTimeout(r, 1000));
     state = await room.state();
-    showInvented(state);
+    followWinner(state);
   }
 
   const made = state?.story;

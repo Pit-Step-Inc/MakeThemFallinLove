@@ -419,6 +419,8 @@ def _trim_images():
 
 def _run_story(code, winner, stem, lang):
     """別スレッドで OpenAI を叩く。終わったら部屋に書き戻す（10秒以上かかる）"""
+    global STORY_SEQ
+
     # 誰も Prompt を出さなかった回。AI に出来事を考えさせて、それをお題にする
     if not winner:
         winner = story.invent_event(lang) or ""
@@ -428,6 +430,31 @@ def _run_story(code, winner, stem, lang):
                 room["story"]["winner"] = winner
 
     result = story.generate(winner, stem, lang)
+
+    # **絵が安全側で弾かれた回。** 会話だけ通ってしまうので、そのまま進めると
+    # 背景が前の回のまま残る。お題そのものが描けないということなので、
+    # AI に別の出来事を考えさせて**まるごと作り直す**。
+    # 親密度も日数もこの下で1回だけ足すので、二重に進むことはない。
+    # 作り直しは1回だけ（差し替えた先も弾かれたら、絵無しで進める）
+    if result.get("blocked"):
+        with LOCK:
+            room = ROOMS.get(code)
+            if not room or not room["story"]:
+                return
+            # クライアントはこれを見て「別の出来事を考えています」に切り替える
+            room["story"] = {**room["story"], "status": "working", "blocked": True}
+
+        winner = story.invent_event(lang) or winner
+        with LOCK:
+            room = ROOMS.get(code)
+            if not room or not room["story"]:
+                return
+            room["story"] = {**room["story"], "winner": winner}
+            STORY_SEQ += 1
+            stem = f"{code}_{STORY_SEQ}"
+
+        result = story.generate(winner, stem, lang)
+
     with LOCK:
         room = ROOMS.get(code)
         if not room or not room["story"]:
@@ -612,7 +639,15 @@ def _run_event(code, stem, lang):
       1段目 … 出来事と会話（3秒ほど）。ここで text が埋まる。
                クライアントはこれを渦の画面にお題として出し、絵を待つ
       2段目 … その出来事の背景（13秒ほど）。埋まったら status が ready になる
+
+    **絵が安全側で弾かれたら、出来事ごと作り直す**（次の展開と同じ扱い。
+    tools/rooms.py の _run_story を参照）。作り直しは1回だけ。
+
+    親密度は**最後に1回だけ**足す。1段目で足してしまうと、作り直した回で
+    捨てたほうのぶんまで残ってしまう。
     """
+    global STORY_SEQ
+
     made = story.event_text(lang)
     with LOCK:
         room = ROOMS.get(code)
@@ -621,6 +656,36 @@ def _run_event(code, stem, lang):
         if not made.get("lines"):
             room["event"] = {"status": "error", "image": None, **made}
             return
+        # まだ working。text が入ったことでクライアントが渦へ進む
+        room["event"] = {"status": "working", "image": None, **made}
+
+    drawn = story.event_image(made["text"], stem)
+
+    # 出来事そのものが描けない回。別の出来事を考えさせて作り直す
+    if not drawn.get("image") and story.is_blocked(drawn.get("error")):
+        with LOCK:
+            room = ROOMS.get(code)
+            if not room or not room["event"]:
+                return
+            # クライアントはこれを見て「別の出来事を考えています」に切り替える
+            room["event"] = {**room["event"], "blocked": True}
+
+        retry = story.event_text(lang)
+        if retry.get("lines"):
+            made = retry
+            with LOCK:
+                room = ROOMS.get(code)
+                if not room or not room["event"]:
+                    return
+                room["event"] = {**room["event"], "image": None, **made, "blocked": True}
+                STORY_SEQ += 1
+                stem = f"{code}_{STORY_SEQ}"
+            drawn = story.event_image(made["text"], stem)
+
+    with LOCK:
+        room = ROOMS.get(code)
+        if not room or not room["event"]:
+            return
 
         # イベントでの Martin の対応ぶりでも親密度は動く。
         # 幅は次の展開より小さい（tools/story.py の EVENT_AFFINITY_*）
@@ -628,21 +693,14 @@ def _run_event(code, stem, lang):
             AFFINITY_MIN,
             min(AFFINITY_MAX, room["affinity"] + int(made.get("affinity") or 0)),
         )
-        # まだ working。text が入ったことでクライアントが渦へ進む
-        room["event"] = {"status": "working", "image": None, **made}
-        text = made["text"]
-
-    drawn = story.event_image(text, stem)
-    with LOCK:
-        room = ROOMS.get(code)
-        if not room or not room["event"]:
-            return
-        room["event"].update({
+        room["event"] = {
+            **room["event"],
+            **made,
             "status": "ready",
             "image": drawn["image"],
             # 絵が描けなくても会話はあるので、理由だけ残して進ませる
             "error": drawn["error"],
-        })
+        }
     _trim_images()
 
 
