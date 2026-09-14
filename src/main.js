@@ -23,6 +23,7 @@ import { initEndingScene } from "./endingScene.js";
 import { t } from "./i18n.js";
 
 const stage    = document.getElementById("stage");
+const eventHeading = document.getElementById("eventHeading");
 const soundBtn = document.getElementById("soundToggle");
 
 /** 初期言語: 前回選んだもの → ブラウザの言語 → en */
@@ -38,6 +39,19 @@ const OPENING_BACKDROPS = [
   "assets/background/background_shinjuku_001.png",
   "assets/background/background_ikebukuro_001.png",
 ];
+
+/**
+ * ランダムイベントを挟む日（assets/Prompt/004.txt）。
+ * 冒頭の会話のあとに割り込んで、出来事とそれに対する会話を見せてから
+ * Prompt 入力に入る。
+ */
+const EVENT_DAYS = [2];
+
+/** その日のイベントをまだ見せていないか。冒頭の会話の行き先を分ける */
+let eventPending = false;
+
+/** いま流れているのがイベント後の会話か。終わったら親密度の増減を見せる */
+let eventRevealPending = false;
 
 /* ---------------------------------------------------------------
    BGM（全シーン共通）
@@ -133,6 +147,19 @@ room.onEvent((event) => {
 
 const sceneChange = initSceneChange({ lang: uiLang, sfx });
 
+/**
+ * 渦の画面から出る。**シーンを切り替えた直後に必ず呼ぶこと。**
+ *
+ * 渦は rAF と SE をループさせたままなので、ここで止めないと
+ * 次の画面の裏で回り続ける（未来の3場面やスタッフロールのあいだ
+ * ずっと「生成中」の SE が鳴っていたのがこれ）。
+ */
+function leaveSceneChange() {
+  sceneChange.stop();
+  sceneChange.setStatus(null);
+  sceneChange.showHero(null);
+}
+
 const promptScene = initPromptScene({
   lang: uiLang,
   sfx,
@@ -175,9 +202,17 @@ const ending = initEndingScene({
   lang: uiLang,
   sfx,
   // 回想は3枚とも同じシーンなので、showScene が動くのは1枚目だけ。
-  // 2枚目からは背景と札が差し替わる
-  onMemory: () => showScene("scene-memory"),
-  onBoard:  () => showScene("scene-ending"),
+  // 2枚目からは背景と札が差し替わる。
+  // **渦を止めるのはここ。** 締めは play() の中で画面が変わっていくので、
+  // 呼び出し側（playEnding）で待ってから止めると最後まで鳴り続けてしまう
+  onMemory: async () => {
+    await showScene("scene-memory");
+    leaveSceneChange();
+  },
+  onBoard: async () => {
+    await showScene("scene-ending");
+    leaveSceneChange();
+  },
   // 部屋も日数も親密度もサーバーとこちらの両方に散らばっているので、
   // 個別に巻き戻さず読み込み直す。タイトルから素直にやり直せる
   onBackToTitle: () => location.reload(),
@@ -203,9 +238,21 @@ const opening = initTalkScene({
   sfx,
   sceneId: "scene-opening",
   prefix: "opening",
-  // 会話が終わったら同じ画面のまま Prompt 入力へ。
-  // showScene を挟まないのは、背景も立ち絵も動かないのに暗転してしまうため
-  onDone: () => startPromptPhase(),
+  // 会話が終わったら Prompt 入力へ。showScene を挟まないのは、
+  // 背景も立ち絵も動かないのに暗転してしまうため。
+  // ただしイベントのある日だけ、その前にイベントを挟む
+  onDone: async () => {
+    if (eventPending) {
+      await playEvent();
+      return;
+    }
+    // イベント後の会話だったなら、ここで親密度の増減を見せる
+    if (eventRevealPending) {
+      eventRevealPending = false;
+      await revealAffinity();
+    }
+    startPromptPhase();
+  },
 });
 
 const dayScene = initDayScene({
@@ -225,6 +272,7 @@ const dayScene = initDayScene({
     // 日ごとに台本と街が変わる。1日目は渋谷、2日目は新宿、3日目は池袋
     const script = t(uiLang).openingScripts[currentDay - 1];
     if (!script) {
+      eventPending = false;
       // 台本を用意していない日は冒頭の会話を挟まない。前の日に生成された
       // 背景に戻して、その上で次の Prompt を書いてもらう
       await story.prepare([]);
@@ -233,6 +281,11 @@ const dayScene = initDayScene({
       startPromptPhase();
       return;
     }
+
+    // この日はイベントを挟むか。冒頭の会話が終わったところで見る。
+    // 鳴らしたい瞬間に間に合うよう、サイレンはここで読んでおく
+    eventPending = EVENT_DAYS.includes(currentDay);
+    if (eventPending) sfx.preload("siren");
 
     await opening.prepare(script);
     opening.setBackdrop(OPENING_BACKDROPS[currentDay - 1]);
@@ -287,6 +340,8 @@ const title = initTitle({
     promptScene.setLang(lang);
     sceneChange.setLang(lang);
     ending.setLang(lang);
+    // 生成される会話もこの言語で書かせる（部屋を建てるときサーバーへ送る）
+    room.setLang(lang);
 
     await showScene("scene-nickname");
     nickname.focus();
@@ -448,19 +503,49 @@ function showFinalAffinity() {
  * 3日ぶん終わるまで null なので、ここに来る時点では必ず入っている。
  */
 async function playEnding() {
+  codeChip.hide();
+
+  // **締めが流れるのは親密度が満タンのときだけ。**
+  // 届かなかったときは、続きがあることだけ告げてタイトルへ戻ってもらう
+  if (affection.value < AFFINITY_MAX) {
+    console.log("[ending] unfinished:", affection.value, "/", AFFINITY_MAX);
+    affection.hide();
+    await ending.prepare();
+    lastScene.stop();
+    await ending.showUnfinished();
+    return;
+  }
+
   // ここから最後まで EndRoll を流しっぱなしにする
   bgm.stop(700)
     .then(() => bgm.play("endRoll"))
     .catch((err) => console.error("[bgm] failed to switch to the end roll", err));
 
-  codeChip.hide();
-  affection.hide();          // 回想は参照画像どおりゲージを出さない
+  affection.hide();          // 未来の場面は参照画像どおりゲージを出さない
 
-  const state = await room.state();
-  await ending.prepare();
-
+  // 10年後・20年後・30年後を作らせる。20秒ほどかかるので渦で待つ
+  await sceneChange.prepare([]);
+  await showScene("scene-change");
   lastScene.stop();
-  await ending.play(state?.ending);
+  sceneChange.start();
+  sceneChange.setStatus(t(uiLang).generating);
+
+  let state = await room.future();
+  for (let i = 0; i < 120 && state?.future?.status === "working"; i += 1) {
+    await new Promise((r) => setTimeout(r, 1000));
+    state = await room.state();
+  }
+
+  const made = state?.future;
+  const scenes = made?.status === "ready" ? made.scenes : [];
+  if (!scenes.length) {
+    // 未来が作れなくても締めは見せる。ここで止めると何も起きずに終わってしまう
+    console.error("[future] not ready:", made?.error ?? made?.status);
+  }
+
+  await ending.prepare();
+  await ending.play({ scenes, topPlayers: state?.ending?.topPlayers ?? [] });
+  leaveSceneChange();          // 画面が変わった時点で止まっているはずの念押し
   ending.stop();
 }
 
@@ -483,6 +568,81 @@ function startPromptPhase() {
 }
 
 /**
+ * ランダムイベント（assets/Prompt/004.txt）。冒頭の会話と Prompt 入力のあいだに割り込む。
+ *
+ * サーバーは**2段に分けて**返してくる（tools/rooms.py の _run_event）。
+ *   1段目 … 出来事の一文と会話。3秒ほど。ここまでは「イベント発生」とサイレンで待つ
+ *   2段目 … その出来事の背景。13秒ほど。渦を回し、中央に出来事を**お題として**出して待つ
+ *
+ * 会話は冒頭と同じ opening のシーンでそのまま続ける。イベントでの Martin の
+ * 対応ぶりで親密度も動くが、**動かすのは会話を読み終えてから**なので
+ * eventRevealPending を立てて opening の onDone に任せる。
+ */
+async function playEvent() {
+  eventPending = false;
+
+  // ここから先に届く親密度は、イベントの会話を読み終えるまで据え置く
+  affinityHeld = true;
+  heldAffinity = null;
+
+  codeChip.hide();
+  affection.hide();
+
+  eventHeading.textContent = t(uiLang).eventHeading;
+  await showScene("scene-event");
+  opening.stop();
+  sfx.loop("siren");                 // 出来事が決まるまで鳴らしっぱなし
+
+  // 1段目。text が埋まった時点で status はまだ working（絵がこれから）
+  let state = await room.event();
+  for (let i = 0; i < 80 && !state?.event?.text && state?.event?.status === "working"; i += 1) {
+    await new Promise((r) => setTimeout(r, 500));
+    state = await room.state();
+  }
+  sfx.stopLoop("siren");
+
+  const made = state?.event;
+  if (!made || made.status === "error" || !made.lines?.length) {
+    console.error("[event] not ready:", made?.error ?? made?.status);
+    toaster.show(t(uiLang).generateFailed);
+    affinityHeld = false;            // 見せる会話が無いので据え置きを解く
+    startPromptPhase();
+    return;
+  }
+  console.log("[event]", made.text, "/ affinity:", made.affinity);
+
+  // 2段目。渦を回しながら背景を待つ。中央には**何が起きたか**を札で出す
+  await sceneChange.prepare([]);
+  await showScene("scene-change");
+  sceneChange.start();
+  sceneChange.setStatus(t(uiLang).generating);
+  sceneChange.showHero({ author: t(uiLang).aiAuthor, text: made.text, likes: 0 });
+
+  for (let i = 0; i < 120 && state?.event?.status === "working"; i += 1) {
+    await new Promise((r) => setTimeout(r, 1000));
+    state = await room.state();
+  }
+
+  const done = state?.event ?? made;
+  const lines = done.lines?.length ? done.lines : made.lines;
+  if (done.error) console.error("[event] image:", done.error);
+
+  await opening.prepare(lines, { keepAllOnStage: true });
+  // 絵が描けなかったときは、その日の街に戻す。null にすると背景が消えてしまう
+  opening.setBackdrop(done.image || OPENING_BACKDROPS[currentDay - 1]);
+
+  // 会話のあとすぐ鳴らすので、ここで読んでおく
+  sfx.preload("affinity");
+
+  await showScene("scene-opening");
+  leaveSceneChange();
+  affection.show();                  // 値は据え置きのまま。動くのは会話のあと
+
+  eventRevealPending = true;
+  opening.start();
+}
+
+/**
  * 次の展開を作らせて、出来たら会話として流す。
  *
  * 作るのは部屋につき1回だけで、2人目以降は同じものを受け取る（tools/rooms.py）。
@@ -491,11 +651,24 @@ function startPromptPhase() {
 async function playNextScene() {
   sceneChange.setStatus(t(uiLang).generating);
 
+  // 誰も Prompt を出さなかった回は、お題を AI が考える（tools/rooms.py の
+  // _run_story）。決まるのが渦を出したあとなので、届いたら中央に出す
+  const posted = promptScene.results().length > 0;
+  let heroShown = posted;
+
+  function showInvented(st) {
+    if (heroShown || !st?.story?.winner) return;
+    heroShown = true;
+    sceneChange.showHero({ author: t(uiLang).aiAuthor, text: st.story.winner, likes: 0 });
+  }
+
   let state = await room.story();
+  showInvented(state);
   // 出来上がるまで待つ。渦と SE は回ったままなので、待っている感じにはならない
   for (let i = 0; i < 120 && state?.story?.status === "working"; i += 1) {
     await new Promise((r) => setTimeout(r, 1000));
     state = await room.state();
+    showInvented(state);
   }
 
   const made = state?.story;
@@ -521,8 +694,7 @@ async function playNextScene() {
   sfx.preload("affinity");
 
   await showScene("scene-story");
-  sceneChange.stop();
-  sceneChange.setStatus(null);
+  leaveSceneChange();
   // ゲージは**この回の増減を足す前**の値のまま出す。
   // 動かすのは会話を読み終えてから（revealAffinity）
   affection.show();

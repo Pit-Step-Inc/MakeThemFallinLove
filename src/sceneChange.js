@@ -98,6 +98,27 @@ export function initSceneChange({ lang, sfx }) {
     },
 
     /**
+     * 中央のお題だけを差し替える。
+     *
+     * **投稿が1件も無い回**のためにある。ランダムイベントと、誰も Prompt を
+     * 出さなかった回は、お題を AI が考える（tools/rooms.py の _run_event /
+     * _run_story）。決まるのが渦を出したあとなので、prepare() を通さずに
+     * ここだけ後から埋める（prepare() は見出しも上段も組み直してしまう）。
+     *
+     * @param {{author: string, text: string, likes: number}|null} result
+     */
+    showHero(result) {
+      heroEl.replaceChildren();
+      heroEl.hidden = !result;
+      if (!result) return;
+
+      const els = buildPromptCard({ interactive: false });
+      els.slot.classList.add("prompt-card-slot--hero");
+      fillPromptCard(els, result);
+      heroEl.append(els.slot);
+    },
+
+    /**
      * 出す前に呼ぶ。素材の読み込みを待つ
      * @param {{author: string, text: string, likes: number}[]} results promptScene.results()
      */

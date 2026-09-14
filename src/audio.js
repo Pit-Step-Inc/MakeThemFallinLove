@@ -45,6 +45,8 @@ export const SE = {
   chatNext: "assets/SE/chat_next_chun",
   sceneChange: "assets/SE/scene_transition_fuwan_fuwa_chakiin",
   affinity: "assets/SE/cute_like_pi_se",
+  // 0.44 秒の短いループ素材。鳴らしっぱなしにするなら sfx.loop("siren")
+  siren: "assets/SE/rising_siren_loop_sharp",
 };
 
 /**

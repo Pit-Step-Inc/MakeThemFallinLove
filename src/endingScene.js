@@ -5,10 +5,15 @@
  *       assets/reference_image/Ending_001.png（TOP PLAYERS）
  *       assets/reference_image/Ending_002.png（The End）
  *
- * Catherine の独り言が終わったら、ここで締める。順番は
+ * Catherine の独り言が終わったら、ここで締める。
  *
- *   1. 回想   … 3日ぶんの思い出。生成された背景の上に二人と、その日の会話の
- *                最後のやりとり、それと**選ばれた Prompt の札**を重ねる
+ * **締めが流れるのは親密度が満タンのときだけ。** 届かなかったときは
+ * 「まだ終わっていない」の面だけ出して、タイトルへ戻ってもらう（showUnfinished）。
+ *
+ * 満タンで迎えたときの順番は
+ *
+ *   1. 未来   … 10年後・20年後・30年後。3日間の出来事に連なる情景の上で、
+ *                二人が歳を重ねて幸せになるまで（assets/Prompt/005.txt）
  *   2. TOP PLAYERS … もらったいいねの合計が多かった3人
  *   3. スタッフロール
  *   4. The End
@@ -24,7 +29,6 @@
 
 import { t } from "./i18n.js";
 import { loadClip, createSpriteAnim } from "./spriteAnim.js";
-import { buildPromptCard, fillPromptCard } from "./promptCard.js";
 
 const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)");
 
@@ -61,7 +65,6 @@ const CREDITS = [
   { name: "GPT-Image-2.5" },
   { name: "OpenMusic AI" },
   { name: "Codex" },
-  { name: "Claude" },
   { name: "Blender" },
   { name: "Orca" },
 ];
@@ -81,7 +84,7 @@ export function initEndingScene({ lang, sfx, onMemory, onBoard, onBackToTitle })
   /* ---- 回想 ---------------------------------------------------- */
   const memoryScene = document.getElementById("scene-memory");
   const backdrop = /** @type {HTMLImageElement} */ (document.getElementById("memoryBackdrop"));
-  const cardHost = document.getElementById("memoryCard");
+  const yearEl = document.getElementById("memoryYear");
   const memoryCast = {
     martin: {
       character: "Martin", clip: "martin_talk03",
@@ -99,9 +102,6 @@ export function initEndingScene({ lang, sfx, onMemory, onBoard, onBackToTitle })
     },
   };
 
-  const card = buildPromptCard({ interactive: false });
-  cardHost.append(card.slot);
-
   /* ---- TOP PLAYERS / スタッフロール / The End ------------------- */
   const endScene = document.getElementById("scene-ending");
   const boardEl = document.getElementById("topPlayers");
@@ -110,6 +110,9 @@ export function initEndingScene({ lang, sfx, onMemory, onBoard, onBackToTitle })
   const creditsEl = document.getElementById("credits");
   const creditsRoll = document.getElementById("creditsRoll");
   const endLabel = document.getElementById("endLabel");
+  const notOverEl = document.getElementById("notOver");
+  const notOverTitle = document.getElementById("notOverTitle");
+  const notOverBody = document.getElementById("notOverBody");
   const titleBtn = /** @type {HTMLButtonElement} */ (document.getElementById("backToTitleBtn"));
 
   /** @type {ReturnType<typeof createSpriteAnim>[]} */
@@ -201,23 +204,22 @@ export function initEndingScene({ lang, sfx, onMemory, onBoard, onBackToTitle })
   });
 
   /**
-   * 回想を1枚組む。その日の会話の**最後のやりとり**を残すので、
-   * 参照画像と同じく二人ぶんの吹き出しが並ぶ。
+   * 未来の場面を1枚組む。二人の台詞を1往復ぶん並べる。
    */
-  function fillMemory(memory) {
-    backdrop.hidden = !memory.image;
-    if (memory.image) backdrop.src = memory.image;
+  function fillScene(scene) {
+    backdrop.hidden = !scene.image;
+    if (scene.image) backdrop.src = scene.image;
 
-    fillPromptCard(card, memory.winner ?? { author: "", text: "", likes: 0 });
-    // 2枚目からは同じ画面のまま中身だけ入れ替わるので、札の出現を掛け直す
-    cardHost.style.animation = "none";
-    void cardHost.offsetWidth;
-    cardHost.style.animation = "";
+    yearEl.textContent = t(uiLang).yearsLater(scene.year);
+    // 2枚目からは同じ画面のまま中身だけ入れ替わるので、見出しの出現を掛け直す
+    yearEl.style.animation = "none";
+    void yearEl.offsetWidth;
+    yearEl.style.animation = "";
 
     for (const [who, c] of Object.entries(memoryCast)) {
-      const last = [...(memory.lines ?? [])].reverse().find((l) => l.who === who);
-      c.text.textContent = last?.text ?? "";
-      c.bubble.hidden = !last;
+      const line = (scene.lines ?? []).find((l) => l.who === who);
+      c.text.textContent = line?.text ?? "";
+      c.bubble.hidden = !line;
     }
   }
 
@@ -267,9 +269,10 @@ export function initEndingScene({ lang, sfx, onMemory, onBoard, onBackToTitle })
     boardEl.hidden = which !== "board";
     creditsEl.hidden = which !== "credits";
     endLabel.hidden = which !== "end";
-    // タイトルへ戻れるのは締めたあとだけ
-    titleBtn.hidden = which !== "end";
-    if (which === "end") titleBtn.textContent = t(uiLang).backToTitle;
+    notOverEl.hidden = which !== "unfinished";
+    // タイトルへ戻れるのは、締めたあとか、続きがあると告げたとき
+    titleBtn.hidden = which !== "end" && which !== "unfinished";
+    if (!titleBtn.hidden) titleBtn.textContent = t(uiLang).backToTitle;
   }
 
   return {
@@ -283,15 +286,28 @@ export function initEndingScene({ lang, sfx, onMemory, onBoard, onBackToTitle })
     },
 
     /**
+     * **親密度が満タンに届かなかったとき。**
+     * 締めは流さず、続きがあることだけ告げてタイトルへ戻ってもらう。
+     */
+    async showUnfinished() {
+      visible = true;
+      notOverTitle.textContent = t(uiLang).notOverTitle;
+      notOverBody.textContent = t(uiLang).notOverBody;
+      await onBoard?.();               // 締めと同じロゴ＋歩く二人の画面
+      showPanel("unfinished");
+      walkers.forEach(playWalker);
+    },
+
+    /**
      * 締めを最後まで流す。呼び出し側は await するだけでよい。
-     * @param {{memories: object[], topPlayers: object[]}} ending
+     * @param {{scenes: object[], topPlayers: object[]}} ending
      */
     async play(ending) {
       visible = true;
 
-      for (const memory of ending?.memories ?? []) {
-        fillMemory(memory);
-        await onMemory?.(memory);
+      for (const scene of ending?.scenes ?? []) {
+        fillScene(scene);
+        await onMemory?.(scene);
         await hold(MEMORY_MS);
       }
 
