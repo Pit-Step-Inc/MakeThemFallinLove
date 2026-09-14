@@ -31,8 +31,13 @@ export const MAX_PROMPTS = 5;
 /** サーバーが居ないときの制限時間 秒（tools/rooms.py の ROUND_SECONDS と揃える） */
 export const TIME_LIMIT = 60;
 
-/** 入力できる長さ。参照画像のプレースホルダに合わせてある */
-export const MAX_LENGTH = 30;
+/**
+ * 入力できる長さ。言語ごとに変える（tools/rooms.py の MAX_TEXT と揃える）。
+ *
+ * 英語は同じ内容を書くのに語と語の空白ぶん字数が要るので、日本語より長く取る。
+ * 上段の札（.prompt-card）に収まる範囲であること。
+ */
+export const MAX_LENGTH = { ja: 40, en: 50 };
 
 /** 部屋の様子を取りに行く間隔 ms */
 const POLL_MS = 600;
@@ -44,13 +49,13 @@ const TICK_MS = 200;
 const SLIDE_MS = 260;
 
 /**
- * 先頭 MAX_LENGTH 「文字」に切り詰める。
+ * 先頭 limit 「文字」に切り詰める。
  * maxlength 属性は UTF-16 単位で数えるので、絵文字や結合文字が
  * 2 文字分を消費してしまう（nickname.js と同じ理由）。
  */
-function clamp(value) {
+function clamp(value, limit) {
   const chars = [...value];
-  return chars.length > MAX_LENGTH ? chars.slice(0, MAX_LENGTH).join("") : value;
+  return chars.length > limit ? chars.slice(0, limit).join("") : value;
 }
 
 /**
@@ -108,6 +113,9 @@ export function initPromptScene({ lang, sfx, room, onTimeUp }) {
       }
       fillPromptCard(els, p);
       els.like.setAttribute("aria-label", t(uiLang).promptLike);
+      // **先頭がいまの一番手。** サーバーがいいね降順で返すので、
+      // 左端がそのまま「次の展開に選ばれる Prompt」になる（tools/rooms.py の _ranked）
+      els.slot.classList.toggle("is-leading", p === list[0]);
       // append は既にある要素なら「移動」になる。これで並びが順番どおりになる
       listEl.append(els.slot);
     }
@@ -237,7 +245,7 @@ export function initPromptScene({ lang, sfx, room, onTimeUp }) {
      --------------------------------------------------------------- */
 
   inputEl.addEventListener("input", () => {
-    const clamped = clamp(inputEl.value);
+    const clamped = clamp(inputEl.value, maxLength());
     if (clamped === inputEl.value) return;
     const pos = inputEl.selectionStart;
     inputEl.value = clamped;
@@ -264,9 +272,16 @@ export function initPromptScene({ lang, sfx, room, onTimeUp }) {
     inputEl.focus();
   });
 
+  /** いまの言語で入力できる長さ */
+  function maxLength() {
+    return MAX_LENGTH[uiLang] ?? MAX_LENGTH.en;
+  }
+
   function applyStrings() {
     const s = t(uiLang);
     labelEl.textContent = s.promptLabel;
+    // 文字数は言語で変わるので、属性のほうも言語に追従させる
+    inputEl.maxLength = maxLength();
     inputEl.placeholder = s.promptPlaceholder;
     inputLabelEl.textContent = s.promptPlaceholder;
     for (const els of shown.values()) els.like.setAttribute("aria-label", s.promptLike);

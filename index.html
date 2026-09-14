@@ -191,8 +191,19 @@
 
     </section>
 
-    <!-- ===== 回想（3日ぶんの思い出と、選ばれた Prompt） ===== -->
-    <!-- 参照: assets/reference_image/Memory_001.png, Memory_002.png -->
+    <!-- ===== ランダムイベントの予告 ===== -->
+    <!-- 2日目の冒頭のあとに割り込む。サイレンを鳴らしているあいだに
+         出来事を作り、決まったら渦の画面へ移してお題として出す
+         （assets/Prompt/004.txt） -->
+    <section class="scene scene--event" id="scene-event" hidden>
+
+      <p class="event-heading" id="eventHeading"></p>
+
+    </section>
+
+    <!-- ===== 未来（10年後・20年後・30年後） ===== -->
+    <!-- 組み方は会話の画面と同じ（参照: Memory_001.png, Memory_002.png）。
+         背景は3日間の出来事に連なる情景として生成される -->
     <section class="scene scene--opening scene--memory" id="scene-memory" hidden>
 
       <img class="backdrop" id="memoryBackdrop" alt="" width="1792" height="1024">
@@ -203,8 +214,8 @@
       <span class="name-tag name-tag--martin"    id="memoryNameMartin">Martin</span>
       <span class="name-tag name-tag--catherine" id="memoryNameCatherine">Catherine</span>
 
-      <!-- その日いちばんいいねが多かった Prompt。中身は promptCard.js が組む -->
-      <div class="memory-card" id="memoryCard"></div>
+      <!-- 何年後かの見出し -->
+      <p class="memory-year" id="memoryYear"></p>
 
       <div class="bubble bubble--martin" id="memoryBubbleMartin" hidden>
         <p class="bubble-text"><span id="memoryTextMartin"></span></p>
@@ -239,6 +250,12 @@
       <!-- スタッフロール。中身は endingScene.js の CREDITS から組む -->
       <div class="credits" id="credits" hidden>
         <div class="credits__roll" id="creditsRoll"></div>
+      </div>
+
+      <!-- 親密度が満タンに届かなかったとき -->
+      <div class="not-over" id="notOver" hidden>
+        <p class="not-over__title" id="notOverTitle"></p>
+        <p class="not-over__body"  id="notOverBody"></p>
       </div>
 
       <!-- 締め -->
@@ -280,7 +297,7 @@
 
       <div class="pixel-panel prompt-timer">
         <span class="prompt-timer__label" id="promptLabel"></span>
-        <span class="prompt-timer__count" id="promptCount">30</span>
+        <span class="prompt-timer__count" id="promptCount">60</span>
       </div>
 
       <!-- 揃うのを待たずに始める。ホストにだけ出す -->
@@ -288,8 +305,9 @@
 
       <label class="pixel-panel prompt-input">
         <span class="sr-only" id="promptInputLabel"></span>
+        <!-- 実際の上限は言語で変わる。promptScene.js が maxLength を入れ直す -->
         <input type="text" id="promptInput"
-               maxlength="30"
+               maxlength="50"
                autocomplete="off" autocapitalize="off" spellcheck="false"
                aria-labelledby="promptInputLabel">
       </label>
@@ -300,7 +318,10 @@
          シーンの外に置いてある -->
     <div class="affection" id="affection" role="progressbar"
          aria-label="Catherine" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" hidden>
-      <div class="affection__fill" id="affectionFill"></div>
+      <!-- 素材の抜けている形に切り抜く器。中の帯はこの形の中でだけ見える -->
+      <div class="affection__hole">
+        <div class="affection__fill" id="affectionFill"></div>
+      </div>
     </div>
 
     <!-- 部屋コードの札。押すとコピーできる。通知と同じくシーンの外に置く -->

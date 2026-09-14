@@ -31,12 +31,35 @@ RANGE_RE = re.compile(r"^bytes=(\d*)-(\d*)$")
 #: この下に来たリクエストは静的ファイルではなくルーム API に回す
 API_PREFIX = "/api/"
 
+#: 配信してよい場所。**ここに挙げたもの以外は 404 にする。**
+#:
+#: SimpleHTTPRequestHandler は指定フォルダ以下を何でも配ってしまうので、
+#: そのままだと `/.env`（OpenAI の鍵）も `/.git/config`（履歴まるごと）も
+#: `/tools/story.py`（サーバーの中身）も取れてしまう。
+#: このサーバーは既定で 0.0.0.0 を待ち受けるため、手元で動かしている間も
+#: 同じ LAN から読めてしまっていた。ゲームに要るのはこの2つだけ。
+PUBLIC_DIRS = ("assets", "src")
+
+#: 直下に置いてよいファイル
+PUBLIC_FILES = ("index.html",)
+
 #: 公開時だけキャッシュを許す拡張子。中身が変わらないものだけ
 CACHEABLE_EXT = {".png", ".jpg", ".jpeg", ".gif", ".webp",
                  ".ogg", ".m4a", ".wav", ".mp3", ".ttf", ".woff", ".woff2"}
 
-#: Render などに載せたときは 1 になる。開発中と挙動を分けるのはキャッシュだけ
-PRODUCTION = bool(os.environ.get("MTFIL_PRODUCTION") or os.environ.get("RENDER"))
+def _truthy(value):
+    """
+    環境変数を真偽で読む。
+
+    bool(os.environ.get(...)) だと **"0" や "false" でも True になる**。
+    あとで止めたくなったときに値を 0 にしても効かない、という嵌りを避ける。
+    """
+    return str(value or "").strip().lower() not in ("", "0", "false", "no", "off")
+
+
+#: 公開時は素材にキャッシュを効かせる。開発中と挙動を分けるのはここだけ。
+#: Render は RENDER を自動で入れてくるので、何も設定しなくても公開側になる
+PRODUCTION = _truthy(os.environ.get("MTFIL_PRODUCTION") or os.environ.get("RENDER"))
 
 
 class RangeRequestHandler(SimpleHTTPRequestHandler):
@@ -114,7 +137,29 @@ class RangeRequestHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(payload)
 
+    def _is_public(self, path):
+        """
+        配ってよい実体か。
+
+        **translate_path() が正規化したあとの実パスで判定する。**
+        `/src/../.env` や URL エンコードで抜けられないようにするため、
+        文字列としての URL ではなく解決後のパスを見る。
+        """
+        root = os.path.realpath(self.directory)
+        target = os.path.realpath(path)
+        if target == root:
+            return True                      # ルートは index.html に落ちる
+        rel = os.path.relpath(target, root)
+        if rel.startswith(os.pardir):
+            return False                     # ルートの外
+        head = rel.replace("\\", "/").split("/")[0]
+        return head in PUBLIC_DIRS or head in PUBLIC_FILES
+
     def send_head(self):
+        if not self._is_public(self.translate_path(self.path)):
+            self.send_error(404, "Not Found")
+            return None
+
         range_header = self.headers.get("Range")
         if not range_header:
             return super().send_head()

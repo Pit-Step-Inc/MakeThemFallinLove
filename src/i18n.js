@@ -43,7 +43,7 @@ export const STRINGS = {
       ],
     ],
     promptLabel:       "What happens next?",
-    promptPlaceholder: "Who does what and where, in 30 characters",
+    promptPlaceholder: "Who does what and where, in 50 characters",
     promptLike:        "Like this prompt",
     promptSent:        "Sent - now vote for the others",
     promptClosed:      "Time is up",
@@ -72,6 +72,12 @@ export const STRINGS = {
     theEnd:            "The End",
     finalAffinity:     "Final Affinity",
     backToTitle:       "Back to Title",
+    eventHeading:      "EVENT!",
+    // AI が考えたお題の差出人。渦の画面の札に出る
+    aiAuthor:          "AI",
+    yearsLater:        (n) => `${n} Years Later`,
+    notOverTitle:      "The story is not over yet...",
+    notOverBody:       "Reach 100 affinity and you might see a new story.",
   },
   ja: {
     titleHint:    "← → で選択・Enter で決定",
@@ -112,7 +118,7 @@ export const STRINGS = {
       ],
     ],
     promptLabel:       "次の展開は？",
-    promptPlaceholder: "どこで誰がなにをしたかを30文字以内で",
+    promptPlaceholder: "どこで誰がなにをしたかを40文字以内で",
     promptLike:        "この Prompt に いいね",
     promptSent:        "送信しました。ほかの人にいいねを",
     promptClosed:      "時間切れです",
@@ -142,6 +148,13 @@ export const STRINGS = {
     theEnd:            "The End",
     finalAffinity:     "最終親密度",
     backToTitle:       "タイトルへ",
+    eventHeading:      "イベント発生",
+    aiAuthor:          "AI",
+    yearsLater:        (n) => `${n}年後`,
+    // 改行は明示する。自動折り返しに任せると「ストーリ／ー」のように
+    // 語の途中で割れる（.not-over__title / __body は white-space: pre-line）
+    notOverTitle:      "物語は、\nまだ終わっていない。。。",
+    notOverBody:       "親密度が100になると、\n新しいストーリーが見られるかも？",
   },
 };
 

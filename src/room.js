@@ -133,6 +133,8 @@ function createLocalRoom(roundSeconds) {
  */
 export function createRoom({ roundSeconds = 30 } = {}) {
   let code = "";
+  /** 生成される会話をどちらで書かせるか。部屋を建てた人の言語に揃える */
+  let lang = "en";
   let playerId = "";
   let isHost = false;
   let online = false;
@@ -270,9 +272,14 @@ export function createRoom({ roundSeconds = 30 } = {}) {
      * 部屋を建てる。建てた人がホストになる。
      * サーバーに繋がらなければ一人用に落ちる（例外は投げない）。
      */
+    /** タイトルで言語が決まったら呼ぶ。部屋を建てる/入るときに一緒に送る */
+    setLang(l) {
+      lang = l;
+    },
+
     async host(name) {
       try {
-        return settle(await post("host", { name }));
+        return settle(await post("host", { name, lang }));
       } catch (err) {
         console.warn("[room] cannot host:", err?.message ?? err);
         return goLocal(name);
@@ -286,7 +293,7 @@ export function createRoom({ roundSeconds = 30 } = {}) {
      */
     async join(inputCode, name) {
       const wanted = String(inputCode ?? "").trim().toUpperCase();
-      const data = await post("join", { code: wanted, name, playerId: loadPlayerId(wanted) });
+      const data = await post("join", { code: wanted, name, lang, playerId: loadPlayerId(wanted) });
       return settle(data);
     },
 
@@ -325,6 +332,35 @@ export function createRoom({ roundSeconds = 30 } = {}) {
       if (!online) return take(local.state());
       try {
         return take(await post("story", { code, playerId, sinceEvent }));
+      } catch {
+        fallback();
+        return take(local?.state());
+      }
+    },
+
+    /**
+     * ランダムイベント（assets/Prompt/004.txt）を作らせる。
+     * **作るのは部屋につき1回だけ**で、2人目以降は同じものを受け取る。
+     * 結果は state().event を見て待つ。
+     */
+    async event() {
+      if (!online) return take(local.state());
+      try {
+        return take(await post("event", { code, playerId, sinceEvent }));
+      } catch {
+        fallback();
+        return take(local?.state());
+      }
+    },
+
+    /**
+     * 10年後・20年後・30年後（assets/Prompt/005.txt）を作らせる。
+     * **親密度が満タンで終えたときだけ使う。** 作るのは部屋につき1回だけ。
+     */
+    async future() {
+      if (!online) return take(local.state());
+      try {
+        return take(await post("future", { code, playerId, sinceEvent }));
       } catch {
         fallback();
         return take(local?.state());

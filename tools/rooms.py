@@ -42,8 +42,9 @@ import story  # noqa: E402  同じフォルダに置いてある
 #: 1ラウンドの長さ 秒（src/promptScene.js の TIME_LIMIT と揃える）
 ROUND_SECONDS = 60
 
-#: Prompt の長さ（src/promptScene.js の MAX_LENGTH と揃える）
-MAX_TEXT = 30
+#: Prompt の長さ。言語ごとに違う（src/promptScene.js の MAX_LENGTH と揃える）。
+#: 英語は語と語の空白ぶん字数が要るので長め
+MAX_TEXT = {"ja": 40, "en": 50}
 
 #: 名前の長さ（src/nickname.js の MAX_LENGTH と揃える）
 MAX_NAME = 7
@@ -113,6 +114,11 @@ def _clean_code(value):
 
 def _clean_name(value):
     return str(value or "").strip()[:MAX_NAME]
+
+
+def _clean_lang(value):
+    """生成に使う言語。知らない値が来たら英語に倒す"""
+    return "ja" if str(value or "").lower().startswith("ja") else "en"
 
 
 def _event(room, kind, name):
@@ -212,10 +218,13 @@ def _ending(room):
     """
     エンディングで使う材料。3日ぶん終わるまでは None。
     毎回のポーリングに載せたくないので、それまでは何も出さない。
+
+    未来の場面（room["future"]）は別に持つ。**親密度が満タンのときしか
+    作らない**ので、ここにまとめると届かなかった部屋でも作りに行ってしまう。
     """
     if not room["allDaysDone"]:
         return None
-    return {"memories": room["memories"], "topPlayers": _top_players(room)}
+    return {"topPlayers": _top_players(room)}
 
 
 def _state(room, player_id=None, since_event=0):
@@ -239,6 +248,8 @@ def _state(room, player_id=None, since_event=0):
         "roundOver": remaining == 0,
         "myPromptId": mine["id"] if mine else None,
         "story": room["story"],
+        "event": room["event"],
+        "future": room["future"],
         "affinity": room["affinity"],
         "day": room["day"],
         "lastDay": MAX_DAYS,
@@ -299,11 +310,13 @@ def _host(body):
         room = {
             "code": code, "hostId": player_id, "players": {}, "prompts": [],
             "deadline": None, "seq": 0, "events": [], "eventSeq": 0, "emptyAt": None,
-            "story": None, "affinity": 0,
+            "story": None, "affinity": 0, "event": None,
             "day": 1, "allDaysDone": False, "history": [], "finale": None,
             # エンディングの回想と TOP PLAYERS 用。回ごとに prompts は捨てられるので、
             # 締まった時点でここに写しておく
-            "memories": [], "likes": {},
+            "likes": {}, "future": None,
+            # 生成される会話をどちらで書かせるか。建てた人の言語に揃える
+            "lang": _clean_lang(body.get("lang")),
         }
         ROOMS[code] = room
         _add_player(room, player_id, name)
@@ -404,9 +417,17 @@ def _trim_images():
             pass
 
 
-def _run_story(code, winner, stem):
+def _run_story(code, winner, stem, lang):
     """別スレッドで OpenAI を叩く。終わったら部屋に書き戻す（10秒以上かかる）"""
-    result = story.generate(winner, stem)
+    # 誰も Prompt を出さなかった回。AI に出来事を考えさせて、それをお題にする
+    if not winner:
+        winner = story.invent_event(lang) or ""
+        with LOCK:
+            room = ROOMS.get(code)
+            if room and room["story"]:
+                room["story"]["winner"] = winner
+
+    result = story.generate(winner, stem, lang)
     with LOCK:
         room = ROOMS.get(code)
         if not room or not room["story"]:
@@ -420,11 +441,6 @@ def _run_story(code, winner, stem):
         # その日の会話は最後の独り言（003.txt）で振り返らせるので取っておく
         if result.get("lines"):
             room["history"].append(result["lines"])
-
-        # 回想で使う絵と台詞。_story で積んだその日のぶんに入れる
-        if room["memories"]:
-            room["memories"][-1]["image"] = result.get("image")
-            room["memories"][-1]["lines"] = result.get("lines") or []
 
         # 1日ぶん終わった。次の日へ進めるか、これで打ち止めか
         if room["day"] >= MAX_DAYS:
@@ -460,30 +476,23 @@ def _story(body):
             return 200, _state(room, player_id, since)   # もう誰かが始めている
 
         ranked = _ranked(room)
-        if not ranked:
-            room["story"] = {"status": "error", "error": "no prompts", "lines": [],
-                             "affinity": 0, "bgm": "", "image": None, "winner": ""}
-            return 200, _state(room, player_id, since)
 
-        winner = ranked[0]["text"]
+        # **誰も出さなかった回も止めない。** お題は AI に考えさせて、
+        # そのまま次の展開を作る（winner は _run_story の中で埋まる）
+        winner = ranked[0]["text"] if ranked else ""
 
-        # この回はもう締まっている。いいねの合計と選ばれた Prompt を
-        # エンディング用に写しておく（room["prompts"] は次の回で捨てられる）
+        # この回はもう締まっている。いいねの合計を TOP PLAYERS 用に写しておく
+        # （room["prompts"] は次の回で捨てられる）
         for p in room["prompts"]:
             room["likes"][p["author"]] = room["likes"].get(p["author"], 0) + p["likes"]
-        room["memories"].append({
-            "day": room["day"],
-            "winner": {"author": ranked[0]["author"], "text": winner, "likes": ranked[0]["likes"]},
-            "image": None,
-            "lines": [],
-        })
 
         STORY_SEQ += 1
         stem = f"{code}_{STORY_SEQ}"
         room["story"] = {"status": "working", "winner": winner, "lines": [],
                          "affinity": 0, "bgm": "", "image": None}
 
-        threading.Thread(target=_run_story, args=(code, winner, stem), daemon=True).start()
+        threading.Thread(target=_run_story, args=(code, winner, stem, room["lang"]),
+                         daemon=True).start()
         return 200, _state(room, player_id, since)
 
 
@@ -493,9 +502,9 @@ def _run_finale(code):
         room = ROOMS.get(code)
         if not room:
             return
-        history, affinity = list(room["history"]), room["affinity"]
+        history, affinity, lang = list(room["history"]), room["affinity"], room["lang"]
 
-    result = story.finale(history, affinity)
+    result = story.finale(history, affinity, lang)
     with LOCK:
         room = ROOMS.get(code)
         if not room or not room["finale"]:
@@ -534,13 +543,16 @@ def _finale(body):
 def _prompt(body):
     code = _clean_code(body.get("code"))
     player_id = str(body.get("playerId") or "")
-    text = str(body.get("text") or "").strip()[:MAX_TEXT]
+    raw_text = str(body.get("text") or "").strip()
     since = int(body.get("sinceEvent") or 0)
 
     with LOCK:
         room, err = _find(code, player_id)
         if err:
             return err
+
+        # 切り詰める長さは部屋の言語で決まるので、部屋を引いてから切る
+        text = raw_text[:MAX_TEXT.get(room["lang"], MAX_TEXT["en"])]
 
         player = _touch(room, player_id)
         if not text:
@@ -593,13 +605,144 @@ def _get_state(query):
         return 200, _state(room, player_id, since)
 
 
+def _run_event(code, stem, lang):
+    """
+    別スレッドで 004.txt を投げる。**2段に分けて部屋に書き戻す。**
+
+      1段目 … 出来事と会話（3秒ほど）。ここで text が埋まる。
+               クライアントはこれを渦の画面にお題として出し、絵を待つ
+      2段目 … その出来事の背景（13秒ほど）。埋まったら status が ready になる
+    """
+    made = story.event_text(lang)
+    with LOCK:
+        room = ROOMS.get(code)
+        if not room or not room["event"]:
+            return
+        if not made.get("lines"):
+            room["event"] = {"status": "error", "image": None, **made}
+            return
+
+        # イベントでの Martin の対応ぶりでも親密度は動く。
+        # 幅は次の展開より小さい（tools/story.py の EVENT_AFFINITY_*）
+        room["affinity"] = max(
+            AFFINITY_MIN,
+            min(AFFINITY_MAX, room["affinity"] + int(made.get("affinity") or 0)),
+        )
+        # まだ working。text が入ったことでクライアントが渦へ進む
+        room["event"] = {"status": "working", "image": None, **made}
+        text = made["text"]
+
+    drawn = story.event_image(text, stem)
+    with LOCK:
+        room = ROOMS.get(code)
+        if not room or not room["event"]:
+            return
+        room["event"].update({
+            "status": "ready",
+            "image": drawn["image"],
+            # 絵が描けなくても会話はあるので、理由だけ残して進ませる
+            "error": drawn["error"],
+        })
+    _trim_images()
+
+
+def _random_event(body):
+    """
+    ランダムイベントを作る（assets/Prompt/004.txt）。
+    （通知を積む _event() とは別物。名前が紛らわしいので分けてある）
+    **作るのは部屋につき1回だけ**で、2人目以降は同じものを受け取る。
+    """
+    global STORY_SEQ
+    code = _clean_code(body.get("code"))
+    player_id = str(body.get("playerId") or "")
+    since = int(body.get("sinceEvent") or 0)
+
+    with LOCK:
+        room, err = _find(code, player_id)
+        if err:
+            return err
+        _touch(room, player_id)
+
+        if room["event"] is not None:
+            return 200, _state(room, player_id, since)   # もう誰かが始めている
+
+        # 背景の名前は次の展開と同じ採番にする。_trim_images が
+        # 部屋コードで生き死にを見分けるので、頭を揃えておく必要がある
+        STORY_SEQ += 1
+        stem = f"{code}_{STORY_SEQ}"
+
+        room["event"] = {"status": "working", "text": "", "lines": [], "image": None}
+        threading.Thread(target=_run_event, args=(code, stem, room["lang"]),
+                         daemon=True).start()
+        return 200, _state(room, player_id, since)
+
+def _run_future(code, stem, lang):
+    """
+    別スレッドで 005.txt を投げる。**2段に分けて書き戻す。**
+      1段目 … 3場面の情景と会話（5秒ほど）
+      2段目 … 3枚の背景（同時に投げるので15秒ほど）
+    """
+    with LOCK:
+        room = ROOMS.get(code)
+        if not room:
+            return
+        history = list(room["history"])
+
+    made = story.future_text(history, lang)
+    with LOCK:
+        room = ROOMS.get(code)
+        if not room or not room["future"]:
+            return
+        if not made.get("scenes") or made.get("error"):
+            room["future"] = {"status": "error", **made}
+            return
+        room["future"] = {"status": "working", **made}
+        scenes = made["scenes"]
+
+    story.future_images(scenes, stem)
+    with LOCK:
+        room = ROOMS.get(code)
+        if not room or not room["future"]:
+            return
+        room["future"] = {"status": "ready", "scenes": scenes, "error": None}
+    _trim_images()
+
+
+def _future(body):
+    """
+    親密度が満タンで迎えた締め用に、10年後・20年後・30年後を作る。
+    **作るのは部屋につき1回だけ**で、2人目以降は同じものを受け取る。
+    """
+    global STORY_SEQ
+    code = _clean_code(body.get("code"))
+    player_id = str(body.get("playerId") or "")
+    since = int(body.get("sinceEvent") or 0)
+
+    with LOCK:
+        room, err = _find(code, player_id)
+        if err:
+            return err
+        _touch(room, player_id)
+
+        if room["future"] is not None:
+            return 200, _state(room, player_id, since)   # もう誰かが始めている
+
+        STORY_SEQ += 1
+        stem = f"{code}_{STORY_SEQ}"
+        room["future"] = {"status": "working", "scenes": [], "error": None}
+        threading.Thread(target=_run_future, args=(code, stem, room["lang"]),
+                         daemon=True).start()
+        return 200, _state(room, player_id, since)
+
 ROUTES = {
     ("POST", "/api/host"):        lambda q, b: _host(b),
     ("POST", "/api/join"):        lambda q, b: _join(b),
     ("POST", "/api/ready"):       lambda q, b: _ready(b),
     ("POST", "/api/force-start"): lambda q, b: _force_start(b),
     ("POST", "/api/story"):       lambda q, b: _story(b),
+    ("POST", "/api/event"):       lambda q, b: _random_event(b),
     ("POST", "/api/finale"):      lambda q, b: _finale(b),
+    ("POST", "/api/future"):      lambda q, b: _future(b),
     ("POST", "/api/prompt"):      lambda q, b: _prompt(b),
     ("POST", "/api/like"):        lambda q, b: _like(b),
     ("GET",  "/api/state"):       lambda q, b: _get_state(q),

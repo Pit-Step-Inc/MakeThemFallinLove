@@ -21,13 +21,19 @@
 
 const CLIP_ROOT = "assets/blender/develop";
 
+/** decode() を待つ上限 ms。これを過ぎたら待たずに進む */
+const DECODE_WAIT_MS = 200;
+
 /**
  * 画像を1枚読む。
  *
- * **onload だけでは足りない。** onload は「読み終わった」であって
- * 「デコードし終わった」ではない。連番コマの差し替えでは、そのせいで
- * 最初の1枚が一瞬空になることが実際にあった（loadFrameClip 参照）。
- * decode() まで待てば、使うときには必ず絵がある。
+ * onload は「読み終わった」であって「デコードし終わった」ではない。
+ * 連番コマの差し替えでは、そのせいで最初の1枚が一瞬空になることが
+ * 実際にあった（loadFrameClip 参照）ので、できれば decode() まで待ちたい。
+ *
+ * **ただし待ち切らない。** 裏に回ったタブでは decode() が解決しないまま
+ * 戻ってこないことがある（実測）。素材の読み込みはシーンの進行が待って
+ * いるので、そこで止まるとゲームごと固まる。待つのは上限まで。
  */
 async function loadImage(src) {
   const img = new Image();
@@ -36,8 +42,12 @@ async function loadImage(src) {
     img.onerror = () => reject(new Error(`failed to load ${src}`));
     img.src = src;
   });
-  // 対応していない環境（や失敗）でも読み込み自体は済んでいるので、そのまま返す
-  if (img.decode) await img.decode().catch(() => {});
+  if (img.decode) {
+    await Promise.race([
+      img.decode().catch(() => {}),
+      new Promise((r) => setTimeout(r, DECODE_WAIT_MS)),
+    ]);
+  }
   return img;
 }
 

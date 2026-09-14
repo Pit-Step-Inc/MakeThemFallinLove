@@ -518,6 +518,14 @@ body {
   line-height: 1.6;
   letter-spacing: 0.02em;
   color: var(--ink);
+
+  /* 英語は空白でしか折り返せないので、空白の無い長い語が来ると
+     枠（overflow: hidden）からはみ出して黙って切れる。
+     **break-word では効かない。** 吹き出しは display:grid + place-items:center で、
+     中の <p> が「切れない語の幅」のまま広がってしまい、折り返す余地が生まれない。
+     anywhere は最小幅の計算にも効くので、そこで初めて枠に収まる。
+     実文（英語・日本語）と明示改行の見え方は変わらないことを実測済み */
+  overflow-wrap: anywhere;
 }
 
 /* まだ出していないぶん。display や visibility で消すと行数が変わって
@@ -608,9 +616,11 @@ body {
 
 /* 中の文字はすべて em。カード側の font-size を変えれば丸ごと拡大できる
    （切り替え画面の中央カードがそれ）*/
+/* 高さは本文4行ぶん。日本語40文字 / 英語50文字（promptScene.js の MAX_LENGTH）が
+   入る大きさで、足りないと下のいいね数が枠の外に押し出されて切れる */
 .prompt-card {
   width: 17.01cqw;
-  height: 12.63cqw;
+  height: 14.52cqw;
 
   display: flex;
   flex-direction: column;
@@ -622,6 +632,16 @@ body {
   color: var(--ink);
   text-align: center;
   overflow: hidden;
+}
+
+/* いまの一番手（左端）。次の展開に選ばれる Prompt を金の枠で示す。
+   .pixel-panel の内側の白／黒の輪郭はそのままに、いちばん外だけ金に置き換える */
+.prompt-card-slot.is-leading .prompt-card {
+  border-color: var(--gold);
+  box-shadow:
+    inset 0 0 0 calc(var(--ring) * 1.5) #FFFFFF,
+    inset 0 0 0 calc(var(--ring) * 2.5) var(--gold),
+    0 0 0 calc(var(--ring) * 1.2) color-mix(in srgb, var(--gold) 45%, transparent);
 }
 
 .prompt-card__name {
@@ -689,31 +709,46 @@ body {
 
 .affection[hidden] { display: none; }
 
-/* 枠の内側の帯。
-   位置は affection.png（2112x410）の抜けている部分を実測したもの。
-   バーの内側は x=413..2014 / y=139..267 なので、それを % に直してある。
-   ここを詰めすぎると帯が黒い枠線の上にはみ出す。
+/* 素材の**抜けている形そのもの**に切り抜く器。
 
-   帯そのものは常に内寸いっぱいに置いておいて、**右から clip-path で削る**。
-   scaleX で伸ばすと右端の丸みまで一緒に潰れてしまうため。
-   幅を動かすわけではないので、レイアウトは走らない。 */
+   矩形＋角丸で近づけていたが、右端の絞りとハートへ繋がる細い首が合わず、
+   黒い枠に 2.1% はみ出し、中空の 0.8% が埋め残しになっていた。
+   affection.png（2112x410）の透明部分を外周から塗り分けて拾い、
+   その輪郭をそのまま多角形にしてある（1px 単位で一致・生成は実測）。
+   素材を差し替えたらここも作り直すこと。 */
+.affection__hole {
+  position: absolute;
+  inset: 0;
+  clip-path: polygon(
+    18.703% 38.049%, 18.75% 38.049%, 19.508% 38.049%, 19.508% 37.805%, 19.555% 37.805%,
+    19.555% 34.146%, 19.697% 34.146%, 19.697% 33.902%, 20.644% 33.902%, 20.644% 34.146%,
+    21.023% 34.146%, 21.023% 33.902%, 92.992% 33.902%, 92.992% 34.146%, 93.134% 34.146%,
+    93.134% 37.805%, 93.797% 37.805%, 94.081% 37.805%, 94.081% 38.049%, 94.176% 38.049%,
+    94.176% 41.22%, 94.223% 41.22%, 94.223% 41.463%, 94.792% 41.463%, 94.792% 41.707%,
+    94.839% 41.707%, 94.839% 45.122%, 95.407% 45.122%, 95.407% 55.122%, 94.839% 55.122%,
+    94.839% 55.854%, 94.792% 55.854%, 94.792% 58.049%, 94.223% 58.049%, 94.223% 61.463%,
+    94.176% 61.463%, 94.081% 61.463%, 93.797% 61.463%, 93.797% 61.707%, 93.134% 61.707%,
+    93.134% 65.366%, 92.992% 65.366%, 21.023% 65.366%, 20.644% 65.366%, 19.697% 65.366%,
+    19.555% 65.366%, 19.555% 61.22%, 19.508% 61.22%, 18.75% 61.22%, 18.75% 60.976%,
+    18.703% 60.976%
+  );
+}
+
+/* 中の帯。**形は親が切るので、ここは左から伸びる長方形でよい。**
+   幅ではなく transform で伸ばすのでレイアウトが走らない。
+   left / right は中空の左右端（18.703% / 100 - 95.407%） */
 .affection__fill {
   position: absolute;
-  left: 19.55%;
-  right: 4.59%;
-  top: 33.90%;
-  bottom: 34.63%;
+  left: 18.703%;
+  right: 4.593%;
+  top: 0;
+  bottom: 0;
 
-  /* 右端だけ枠の丸みに合わせる。左は首の付け根に隠れるので角のまま。
-     横の % は帯の幅・縦の % は帯の高さに掛かるので、素材の丸み
-     （横 51px / 縦は帯の半分）をそれぞれの比に直してある */
-  border-radius: 0 3.18% 3.18% 0 / 0 50% 50% 0;
-
-  /* 0 のときは全部削って空、1 のときは削らずに満杯 */
-  clip-path: inset(0 calc((1 - var(--affection, 0)) * 100%) 0 0);
+  transform-origin: left center;
+  transform: scaleX(var(--affection, 0));
   /* 下が濃いめの桃色。ハートと同じ2色なので、並べても浮かない */
   background: linear-gradient(180deg, var(--pink) 55%, var(--pink-deep) 55%);
-  transition: clip-path 400ms ease;
+  transition: transform 400ms ease;
 }
 
 /* ---------------------------------------------------------
@@ -909,7 +944,7 @@ body {
 /* 中央の1枚だけ大きくする。中の文字は em なので一緒に付いてくる */
 .prompt-card-slot--hero .prompt-card {
   width: 19.8cqw;
-  height: 14.7cqw;
+  height: 16.9cqw;          /* 上段の札と同じ 1.16 倍 */
   font-size: 1.63cqw;
 }
 
@@ -1274,24 +1309,32 @@ body {
   display: block;
 }
 
-/* 札は中央上。参照画像どおり、吹き出し（top 28.6cqw〜）のすぐ上に置く。
-   札の高さは 12.63cqw なので、14cqw から置けば下端が 26.6cqw で収まる */
-.memory-card {
+/* 何年後かの見出し。中央上、吹き出し（top 28.6cqw〜）に掛からない位置 */
+.memory-year {
   position: absolute;
-  top: 14cqw;
-  left: 50%;
-  transform: translateX(-50%);
+  top: 15cqw;
+  left: 0;
+  right: 0;
   z-index: 1;
 
-  animation: memory-card-in 520ms 200ms ease both;
+  margin: 0;
+  text-align: center;
+  font-size: 5.4cqw;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  color: #FFFFFF;
+  /* 明るい背景に乗っても読めるように、黒で縁を作る */
+  text-shadow:
+    0 0 0.5cqw var(--ink), 0.18cqw 0.18cqw 0 var(--ink),
+    -0.18cqw 0.18cqw 0 var(--ink), 0.18cqw -0.18cqw 0 var(--ink),
+    -0.18cqw -0.18cqw 0 var(--ink);
+
+  animation: memory-year-in 700ms 200ms ease both;
 }
 
-/* 回想では押せないので、いいねのボタンは出さない（参照画像にも無い） */
-.memory-card .like-btn { display: none; }
-
-@keyframes memory-card-in {
-  from { opacity: 0; transform: translateX(-50%) translateY(-0.8cqw); }
-  to   { opacity: 1; transform: translateX(-50%); }
+@keyframes memory-year-in {
+  from { opacity: 0; transform: translateY(-0.8cqw); }
+  to   { opacity: 1; transform: none; }
 }
 
 /* ---------------------------------------------------------
@@ -1308,7 +1351,8 @@ body {
 /* 3つとも同じ枠に収める。左右は歩く二人を避ける幅 */
 .top-players,
 .credits,
-.end-label {
+.end-label,
+.not-over {
   position: absolute;
   left: 32cqw;
   right: 32cqw;
@@ -1429,12 +1473,54 @@ body {
 
 .top-players[hidden],
 .credits[hidden],
-.end-label[hidden] { display: none; }
+.end-label[hidden],
+.not-over[hidden] { display: none; }
+
+/* ---- 親密度が満タンに届かなかったとき ---- */
+.not-over {
+  top: 19.5cqw;
+  /* ここだけ他の panel より広く取る。歩く二人は 29.8cqw / 73.3cqw の外に
+     居るので、30cqw までなら重ならない。36cqw 幅だと
+     「まだ終わっていない。。。」が1行に収まらず3行になってしまう */
+  left: 30cqw;
+  right: 30cqw;
+  text-align: center;
+  animation: day-in 900ms ease both;
+}
+
+/*
+ * この panel だけ文章が2行 × 2本になるので、**タイトルへ戻る札を下げる。**
+ * 既定の 34cqw のままだと本文の2行目が札の下に潜って読めない
+ * （The End のときは 34cqw のままでよい）。
+ */
+.not-over:not([hidden]) ~ .title-btn {
+  top: 38cqw;
+}
+
+.not-over__title {
+  margin: 0 0 2.2cqw;
+  /* 改行は i18n 側で入れる。自動折り返しだと語の途中で割れる */
+  white-space: pre-line;
+  font-size: 2.9cqw;
+  line-height: 1.3;
+  letter-spacing: 0.06em;
+  color: #FFFFFF;
+}
+
+.not-over__body {
+  margin: 0;
+  white-space: pre-line;
+  font-size: 1.9cqw;
+  line-height: 1.5;
+  letter-spacing: 0.04em;
+  color: var(--gold);
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .memory-card,
+  .memory-year,
   .top-players,
-  .end-label { animation: none; }
+  .end-label,
+  .not-over { animation: none; }
   /* 流さずに頭から出す。hold() 側も短く待つ */
   .credits__roll { animation: none; }
 }
@@ -1552,4 +1638,109 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .title-btn { animation: none; transition: none; }
   .title-btn:hover { transform: none; }
+}
+
+/* ---------------------------------------------------------
+   ランダムイベントの予告
+
+   2日目の冒頭のあとに割り込む。見出しを赤く明滅させながら出来事を作り、
+   決まったら渦の画面へ移す（何が起きたかはそちらに札で出る）。
+   --------------------------------------------------------- */
+.scene--event {
+  display: block;
+  background: var(--ink);
+}
+
+.event-heading {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 20cqw;
+
+  margin: 0;
+  text-align: center;
+  font-size: 7.4cqw;
+  line-height: 1;
+  letter-spacing: 0.12em;
+  color: var(--red);
+
+  /* サイレンに合わせて明滅させる。止めないので生成が長引いても間が持つ */
+  animation: event-pulse 640ms steps(2, jump-none) infinite;
+}
+
+@keyframes event-pulse {
+  from { opacity: 1; }
+  to   { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .event-heading { animation: none; }
+}
+
+/* =========================================================
+   スマホ（横向き）
+   ステージは 16:9 を保ったまま画面に収まるので、置き方は
+   そのままで足りる。ここで面倒を見るのは、指で触ったときと
+   端末の切り欠きまわりだけ。
+   ========================================================= */
+
+/* ---------------------------------------------------------
+   切り欠き・ホームバーを避ける
+
+   viewport-fit=cover にしてあるので 100vw には切り欠きの下も含まれる。
+   ステージがちょうど画面幅いっぱいになる端末（16:9 より横長でない）だと、
+   端が切り欠きに隠れる。安全域を引いた幅に収める。
+   --------------------------------------------------------- */
+.stage {
+  width: min(
+    calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)),
+    calc((100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) * 16 / 9)
+  );
+}
+
+/* ---------------------------------------------------------
+   指で操作するとき（pointer: coarse ＝ タッチ主体の端末）
+   --------------------------------------------------------- */
+@media (pointer: coarse) {
+  /* **iOS Safari は 16px 未満の入力欄にフォーカスすると勝手にズームする。**
+     スマホ横向きだと cqw 換算で 10〜15px まで下がるので、そこだけ底上げする。
+     ズームされるとステージが画面からはみ出して、戻す手立てが無くなる */
+  .name-input,
+  .room-code-input,
+  .prompt-input input {
+    font-size: max(16px, var(--touch-font, 1.55cqw));
+  }
+  .name-input      { --touch-font: 2.2cqw; }
+  .room-code-input { --touch-font: 3cqw; }
+
+  /* 会話を送るのに何度も画面を叩くので、二度叩きの拡大と
+     文字の選択が起きないようにする。入力欄だけは選択を許す */
+  .stage {
+    touch-action: manipulation;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .stage input {
+    -webkit-user-select: auto;
+    user-select: auto;
+  }
+}
+
+/* ---------------------------------------------------------
+   ホバーできる環境だけに絞る
+
+   タッチ端末では、押したあとホバーの見た目が残って
+   「押しっぱなし」に見えることがある。
+   --------------------------------------------------------- */
+@media (hover: none) {
+  .btn:hover,
+  .next-btn:hover:not(:disabled),
+  .back-btn:hover,
+  .like-btn:hover,
+  .title-btn:hover,
+  .code-chip:hover,
+  .sound-toggle:hover {
+    transform: none;
+    color: inherit;
+  }
 }

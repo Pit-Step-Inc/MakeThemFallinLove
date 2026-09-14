@@ -239,19 +239,33 @@ export function initTalkScene({ lang, sfx, sceneId, prefix, catherineFromStart =
     /**
      * 背景を差し替える。冒頭は日ごとの街、次の展開は生成された1枚。
      * 背景を持たない画面（ラストシーン）では何もしない。
+     *
+     * **絵が描けなかった回（src が無い）は、いま出ている背景を残す。**
+     * OpenAI は台詞が通っても画像だけ 500 を返すことがあり、そこで隠すと
+     * 真っ黒な画面で会話することになる。前の回の背景なら同じデートの
+     * 続きとして見られる。一度も背景を出していない画面だけ隠す。
      */
     setBackdrop(src) {
       if (!backdrop) return;
-      backdrop.hidden = !src;
-      if (src) backdrop.src = src;
+      if (src) {
+        backdrop.src = src;
+        backdrop.hidden = false;
+        return;
+      }
+      backdrop.hidden = !backdrop.getAttribute("src");
     },
 
     /**
      * 素材を揃えて頭から組み直す。showScene() の前に呼ぶこと。
      * @param {{who: string, text: string, emotion?: string}[]} [lines]
      *        省略すると台詞なし（背景と立ち絵だけ出す）
+     * @param {{keepAllOnStage?: boolean}} [opts]
+     *        keepAllOnStage: 合流待ちのキャラも最初から出しておく。
+     *        **途中から続きを流すとき**に使う（イベントのあとの会話など）。
+     *        既定のままだと Catherine がいったん消えて、喋る瞬間に
+     *        出直すことになり、同じ場に居るはずなのに不自然になる。
      */
-    prepare(lines) {
+    prepare(lines, { keepAllOnStage = false } = {}) {
       script = lines ?? [];
       index = -1;
       finished = false;
@@ -266,9 +280,10 @@ export function initTalkScene({ lang, sfx, sceneId, prefix, catherineFromStart =
         c.anim?.pose();
       }
       if (cast.catherine) {
-        cast.catherine.onStage = catherineFromStart;
-        cast.catherine.canvas.hidden = !catherineFromStart;
-        if (cast.catherine.nameTag) cast.catherine.nameTag.hidden = !catherineFromStart;
+        const onStage = catherineFromStart || keepAllOnStage;
+        cast.catherine.onStage = onStage;
+        cast.catherine.canvas.hidden = !onStage;
+        if (cast.catherine.nameTag) cast.catherine.nameTag.hidden = !onStage;
       }
 
       sfx?.preload("chatNext");
