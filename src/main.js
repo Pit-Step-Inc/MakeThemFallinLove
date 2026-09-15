@@ -47,6 +47,7 @@ const OPENING_BACKDROPS = [
  * Prompt 入力に入る。
  */
 const EVENT_DAYS = [2];
+const EVENT_MIN_MS = 5000;
 
 /** その日のイベントをまだ見せていないか。冒頭の会話の行き先を分ける */
 let eventPending = false;
@@ -600,6 +601,7 @@ async function playEvent() {
   await showScene("scene-event");
   opening.stop();
   sfx.loop("siren");                 // 出来事が決まるまで鳴らしっぱなし
+  const eventIntroDone = new Promise((resolve) => setTimeout(resolve, EVENT_MIN_MS));
 
   // 1段目。text が埋まった時点で status はまだ working（絵がこれから）
   let state = await room.event();
@@ -607,6 +609,7 @@ async function playEvent() {
     await new Promise((r) => setTimeout(r, 500));
     state = await room.state();
   }
+  await eventIntroDone;
   sfx.stopLoop("siren");
 
   const made = state?.event;
