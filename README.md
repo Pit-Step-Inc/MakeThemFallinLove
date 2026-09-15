@@ -1,64 +1,34 @@
 # MAKE THEM FALL (in love)
-URL: 
 
-## 1. Game Overview
+## Game Overview
 
-## 2. Core Concept
+What if you could step into a dating reality show and change what happens next? MAKE THEM FALL (in love) is an AI-powered multiplayer dating simulation where players influence Martin, an awkward and inexperienced guy, as he tries to win - or completely ruin - his date with Catherine.
 
-## 3. How to Play
+It is designed for casual gamers, streamers, and online communities who want to shape a story together. Through Twitch, YouTube, TikTok, and other social platforms, anyone can join simply by submitting ideas or voting on what Martin should do next.
 
-## 4. Player Fantasy / Main Characters
-### Martin
-### Catherine
+The top-voted choice becomes part of the story. AI then generates the next scene in real time - including background visuals, character reactions, dialogue, and the consequences that follow. Instead of following a fixed narrative, every playthrough evolves through the collective decisions of the audience.
 
-## 5. Core Gameplay Loop
+Our goal is to create a Forever Game: an endlessly evolving "Unreality Show" where AI and the community continuously generate new drama, relationships, and stories.
 
-## 6. Player Intervention
-### Advice (Prompting)
-### Voting
-### Item Generation
+## How It Works
 
-## 7. AI Character System
+- Players join a shared room and submit ideas for Martin's next move.
+- The audience votes, and the top-voted idea becomes the next story prompt.
+- AI generates the following scene, including dialogue, background art, relationship changes, and BGM selection.
+- The story continues until Martin and Catherine either reach a happy ending or the date falls apart.
 
-## 8. Character State
+## Tech Stack
 
-## 9. Relationship System
+- Client: vanilla ES modules, HTML, CSS, Canvas, and WebAudio.
+- Backend: Python 3.12 server via `tools/serve.py`.
+- Room state: in-process memory for a single Render instance.
+- Generated images: saved to disk under the server-managed asset flow.
+- Deployment: `main` is configured for Render; the Vercel version lives on the `vercel` branch.
 
-## 10. Memory System
+## Tools And Assets
 
-## 11. AI Decision Pipeline
-
-## 12. Implementation Architecture
-
-## 13. Tech Stack
-### Game Client
-### Backend
-### AI / LLM
-
-## 14. Hybrid AI Architecture
-
-## 15. Action System
-
-## 16. Game State Management
-
-## 17. Multiplayer / Voting System
-
-## 18. Streaming / Audience Participation
-
-## 19. Scenario / Game Progression
-
-## 20. Emergent Storytelling
-
-## 21. Win / Lose Conditions
-
-## 22. Vertical Slice Scope
-### Must Have
-### Nice to Have
-
-## 23. Example Scenario
-
-## 24. Design Principles
-
-## 25. Key Differentiation
-
-## 26. Future Vision
+- DotGothic16 font: SIL Open Font License 1.1.
+- Blender: used for sprite and animation asset production.
+- OpenMusic: used to generate BGM/audio assets.
+- OpenAI: used for story, dialogue, visual generation, and AI-assisted development.
+- Original project assets: character images, UI, backgrounds, sound effects, scripts, and game code were created for this project unless otherwise noted.
