@@ -21,7 +21,7 @@ Prompt を共有するための最小のルームサーバー
 ホストが抜けたら、いちばん古くから居る人が繰り上がる。部屋の主が居なくなって
 誰も先に進められない部屋ができるのを防ぐため。
 
-**状態の置き場は tools/store.py が持つ。** 環境変数に Redis があればそちら、
+**状態の置き場は store.py が持つ。** 環境変数に Redis があればそちら、
 無ければプロセス内のメモリ（Render と手元がこちら）。同じコードが
 どちらでも動くようにしてあるので、このファイルは置き場を意識しない。
 
@@ -31,8 +31,8 @@ Prompt を共有するための最小のルームサーバー
 先に status を working にしてから鍵を放すので、待っている他の人は
 その間もポーリングを続けられる。
 
-HTTP の口は tools/serve.py が持っていて、このモジュールは
-handle(method, path, query, body) -> (status, obj) だけを公開する。
+HTTP の口は外にある（Vercel では api/index.py、Render では tools/serve.py）。
+このモジュールは handle(method, path, query, body) -> (status, obj) だけを公開する。
 """
 
 import os

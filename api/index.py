@@ -14,7 +14,8 @@ vercel.json で `/api/(.*)` を全部この関数に向けてあるので、
 `_lib` と `_prompts` の頭に `_` を付けているのは、api/ 直下の .py が
 1つずつ別の関数になる決まりを避けるため。
 
-Render では今までどおり tools/serve.py が動き、同じ api/_lib を読む。
+Render 版は別ブランチ（develop / main）にあり、tools/serve.py が
+静的配信と API の両方を受け持つ。読むのは同じ api/_lib で、
 置き場（store.py / images.py）を環境変数で切り替えているので、
 **両方で同じコードが動く。**
 
