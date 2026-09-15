@@ -87,6 +87,7 @@ const CREDITS = [
   { name: "OpenMusic AI" },
   { name: "Codex" },
   { name: "Blender" },
+  { name: "Vercel" },
   { name: "Orca" },
 ];
 
