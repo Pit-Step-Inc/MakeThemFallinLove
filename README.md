@@ -4,50 +4,50 @@
 
 You can play the project here:
 
-- Vercel: https://make-them-fall-in-love001.vercel.app
-- Render: https://make-them-fall.onrender.com
+- Vercel latest build: https://make-them-fall-in-love001.vercel.app
+- Render older build: https://make-them-fall.onrender.com
 
-## How To Play / 操作方法
+## How To Play
 
-1. 最初に言語を選択します。
+1. Select a language.
 
 ![Language select](docs/play-guide/001_RE.png)
 
-2. 自分が Host になるか、共有されたルームコードを入力してゲームに参加します。
+2. Start as the host, or enter a shared room code to join another player's room.
 
 ![Host or join](docs/play-guide/002_RE.png)
 
 ![Room code](docs/play-guide/003_RE.png)
 
-3. Martin と Catherine のデートが始まります。
+3. Watch Martin and Catherine's date begin.
 
 ![Opening scene](docs/play-guide/004_RE.png)
 
-4. Prompt 入力画面になったら、Martin にしてほしい行動やアドバイスを入力します。入力した Prompt は画面上部に表示されます。
+4. When the prompt phase starts, enter an idea or piece of advice for what Martin should do next. Submitted prompts appear at the top of the screen.
 
 ![Prompt input](docs/play-guide/005_RE.png)
 
 ![Submitted prompts](docs/play-guide/006_RE.png)
 
-5. 良いと思った Prompt にいいねします。もっとも多くいいねされた Prompt が採用されます。
+5. Like the prompts you think are best. The prompt with the most likes is selected.
 
 ![Like prompts](docs/play-guide/007_RE.png)
 
-6. 採用された Prompt をもとに、AI が次のストーリーを生成します。
+6. AI generates the next story scene from the selected prompt.
 
 ![Selected prompt](docs/play-guide/008_RE.png)
 
 ![Generated story](docs/play-guide/009_RE.png)
 
-7. ストーリーの内容によって、Catherine の親密度が変化します。
+7. Catherine's affection changes depending on what happens in the story.
 
 ![Affection change](docs/play-guide/010_RE.png)
 
-8. デート中には、ランダムイベントが発生することがあります。
+8. Random events may happen during the date.
 
 ![Random event](docs/play-guide/011_RE.png)
 
-9. 最終的なゴールは、Catherine の親密度を 100 にすることです。親密度が 100 になると特殊な演出を見ることができます。100 に届くまで、何度もプレイして Martin の恋を成功させてください。
+9. Your goal is to raise Catherine's affection to 100. Reaching 100 unlocks a special ending sequence, so keep playing until Martin wins Catherine's heart.
 
 ![Goal](docs/play-guide/012_RE.png)
 
