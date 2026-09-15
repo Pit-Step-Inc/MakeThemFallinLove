@@ -1,0 +1,31 @@
+# Vercel は置いたものを丸ごと静的配信する。**サーバーは Vercel に載らない**
+# （部屋の状態がプロセス内メモリにあるため / 詳しくは render.yaml）。
+# ここでは画面の素材だけを上げ、それ以外は上げない。
+# /api と /assets/generated は vercel.json で Render へ転送している。
+
+# --- サーバー本体。置くと中身がそのまま読めてしまう ---
+tools/
+render.yaml
+requirements.txt
+.env
+
+# --- お題の指示文。サーバーだけが読む（Vercel 側では誰も使わない） ---
+assets/Prompt/
+
+# --- 資料。実行時には読まれない ---
+assets/reference_image/
+assets/blender/gifまとめ/
+assets/blender/lib/
+README.md
+
+# --- 音のマスター。実際に鳴らすのは .ogg と .m4a（src/audio.js） ---
+*.wav
+
+# --- 立ち絵の元素材。実行時に使うのは未来の1枚絵だけ ---
+assets/Martin/*
+!assets/Martin/future
+assets/Catherine/*
+!assets/Catherine/future
+
+# --- 生成された背景。Render のディスクにあるものを転送して使う ---
+assets/generated/
