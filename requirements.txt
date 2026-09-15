@@ -1,2 +1,8 @@
-# 依存ライブラリは無い（tools/ は全部 Python 標準ライブラリで動く）。
-# Render に「Python のサービスである」と認識させるために置いてある空のファイル。
+# 依存ライブラリは無い。
+#
+# tools/ は標準ライブラリだけで動く。Redis も Vercel Blob も
+# REST API を urllib で叩いているので、パッケージを足していない
+# （tools/store.py / tools/images.py 参照）。
+#
+# このファイルが空でも置いてあるのは、Vercel に Python の
+# プロジェクトだと伝えるため。

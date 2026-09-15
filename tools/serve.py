@@ -23,8 +23,12 @@ from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit, parse_qs
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import rooms  # noqa: E402  同じフォルダに置いてある
+#: サーバー本体は api/_lib/ に置いてある。**Vercel では api/ の下だけが
+#: 静的配信されない**ので、そちらに合わせて1か所にまとめてある
+#: （Render はこのファイルが静的配信と API の両方を受け持つ）
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "api", "_lib"))
+import rooms  # noqa: E402
 
 RANGE_RE = re.compile(r"^bytes=(\d*)-(\d*)$")
 

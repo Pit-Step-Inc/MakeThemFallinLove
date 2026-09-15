@@ -28,15 +28,26 @@ import random
 import re
 import threading
 import time
+import sys
 import urllib.error
 import urllib.request
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PROMPT_DIR = os.path.join(ROOT, "assets", "Prompt")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import images  # noqa: E402  同じフォルダに置いてある
 
-#: 生成した背景の置き場。そのまま静的配信に乗る（.gitignore 済み）
-OUT_DIR = os.path.join(ROOT, "assets", "generated")
-OUT_URL = "assets/generated"
+#: api/_lib/ から見て2つ上がプロジェクト直下
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+#: お題の指示文。**api/ の下に置いてある。**
+#: Vercel は api/ 以外を静的配信するので、assets/ に置くと中身が読めてしまう
+#: （ゲームの中身そのもの）。関数からはファイルとして読むので位置は自由
+PROMPT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "_prompts")
+
+#: 生成した背景の置き場は tools/images.py が持つ。
+#: ディスクか Vercel Blob かを環境変数で切り替えるので、ここでは扱わない。
+#: 外から story.OUT_DIR を見ている箇所のために名前だけ残してある
+OUT_DIR = images.OUT_DIR
+OUT_URL = images.OUT_URL
 
 API = "https://api.openai.com/v1"
 
@@ -600,11 +611,9 @@ def make_background(winner, stem):
         "n": 1,
     }, timeout=180)
 
-    os.makedirs(OUT_DIR, exist_ok=True)
-    name = f"{stem}.png"
-    with open(os.path.join(OUT_DIR, name), "wb") as f:
-        f.write(base64.b64decode(data["data"][0]["b64_json"]))
-    return f"{OUT_URL}/{name}"
+    # 置き先はディスクか Vercel Blob。返る文字列は
+    # そのまま <img src> に入れられる形になっている（tools/images.py）
+    return images.put(f"{stem}.png", base64.b64decode(data["data"][0]["b64_json"]))
 
 
 # ---------------------------------------------------------------

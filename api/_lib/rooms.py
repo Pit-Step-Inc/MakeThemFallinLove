@@ -21,9 +21,15 @@ Prompt を共有するための最小のルームサーバー
 ホストが抜けたら、いちばん古くから居る人が繰り上がる。部屋の主が居なくなって
 誰も先に進められない部屋ができるのを防ぐため。
 
-状態はメモリだけに持つ。サーバーを落とせば消えるし、プロセスを分けて
-動かすと共有されない。作っている最中に手元で遊ぶためのもので、
-本番で使うならここを外部のストア（Redis など）に差し替えることになる。
+**状態の置き場は tools/store.py が持つ。** 環境変数に Redis があればそちら、
+無ければプロセス内のメモリ（Render と手元がこちら）。同じコードが
+どちらでも動くようにしてあるので、このファイルは置き場を意識しない。
+
+**生成は同期で行う。** もとは別スレッドに投げて先に応答を返していたが、
+リクエストが終わった時点でインスタンスが止まりうる環境（Vercel）では
+書き戻しが届かない。生成は20〜40秒で、関数の上限（300秒）に収まる。
+先に status を working にしてから鍵を放すので、待っている他の人は
+その間もポーリングを続けられる。
 
 HTTP の口は tools/serve.py が持っていて、このモジュールは
 handle(method, path, query, body) -> (status, obj) だけを公開する。
@@ -33,11 +39,12 @@ import os
 import random
 import secrets
 import sys
-import threading
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import story  # noqa: E402  同じフォルダに置いてある
+import images  # noqa: E402  同じフォルダに置いてある
+import store   # noqa: E402
+import story   # noqa: E402
 
 #: 1ラウンドの長さ 秒（src/promptScene.js の TIME_LIMIT と揃える）
 ROUND_SECONDS = 60
@@ -65,6 +72,15 @@ STALE_SECONDS = 5
 #: 揃わないときはホストが force-start で先へ進められる。
 IDLE_SECONDS = 90
 
+#: 見に来た印（seen）を書き戻す間隔 秒。
+#:
+#: **ポーリングのたびに書かない。** クライアントは 2.5 秒ごとに state を
+#: 見に来るので、素直に読んで書くと外部ストア（Redis）への往復が
+#: ゲーム1回で数千回になる。抜けたとみなすのは IDLE_SECONDS（90秒）なので、
+#: それよりずっと短い間隔で書き戻せば判定は変わらない。
+#: 書かずに済む回は読むだけで返すので、往復が 1/4 になる
+TOUCH_SECONDS = 20
+
 #: 持っておく通知の数
 EVENT_KEEP = 50
 
@@ -85,20 +101,17 @@ TOP_PLAYERS = 3
 #: 何日ぶん遊ぶか。これを終えると最後のシーンへ
 MAX_DAYS = 3
 
-ROOMS = {}
-LOCK = threading.RLock()
-STORY_SEQ = 0
 
 
 # ---------------------------------------------------------------
 #  部屋
 # ---------------------------------------------------------------
 
-def _new_code():
-    """空いているコードを1つ。LOCK の中で呼ぶこと"""
+def _new_code(taken):
+    """空いているコードを1つ"""
     for _ in range(100):
         code = "".join(random.choice(CODE_ALPHABET) for _ in range(CODE_LENGTH))
-        if code not in ROOMS:
+        if code not in taken:
             return code
     # ここまで来るのは部屋が埋まりきったとき。桁を足して逃がす
     return "".join(random.choice(CODE_ALPHABET) for _ in range(CODE_LENGTH + 2))
@@ -181,15 +194,18 @@ def _prune(room):
 
 
 def _sweep():
-    """空になった部屋を畳む。LOCK の中で呼ぶこと"""
+    """空になった部屋を畳む。部屋を建てるときに1度だけ回す"""
     now = time.time()
-    for code, room in list(ROOMS.items()):
-        if room["players"]:
-            room["emptyAt"] = None
-        elif room["emptyAt"] is None:
-            room["emptyAt"] = now
-        elif now - room["emptyAt"] > EMPTY_SECONDS:
-            del ROOMS[code]
+    for code in store.codes():
+        with store.room_tx(code) as room:
+            if room is None:
+                continue
+            if room["players"]:
+                room["emptyAt"] = None
+            elif room["emptyAt"] is None:
+                room["emptyAt"] = now
+            elif now - room["emptyAt"] > EMPTY_SECONDS:
+                store.delete(code)
 
 
 def _remaining_ms(room):
@@ -281,16 +297,20 @@ def _add_player(room, player_id, name):
         _event(room, "join", name)
 
 
-def _find(code, player_id=None):
-    """部屋を引く。無ければ (None, エラー応答)"""
+def _check(room, code, player_id=None):
+    """
+    読み込んだ部屋が使えるか見る。使えなければエラー応答、よければ None。
+
+    もとは部屋を引く役も兼ねていたが、引くのは store.room_tx() の仕事に
+    なったので、確かめるだけにしてある。
+    """
     if not code:
-        return None, (400, {"error": "bad code"})
-    room = ROOMS.get(code)
+        return 400, {"error": "bad code"}
     if not room:
-        return None, (404, {"error": "no such room", "code": code})
+        return 404, {"error": "no such room", "code": code}
     if player_id is not None and player_id not in room["players"]:
-        return None, (403, {"error": "not joined"})
-    return room, None
+        return 403, {"error": "not joined"}
+    return None
 
 
 # ---------------------------------------------------------------
@@ -303,10 +323,10 @@ def _host(body):
     if not name:
         return 400, {"error": "name required"}
 
-    with LOCK:
-        _sweep()
-        code = _new_code()
-        player_id = secrets.token_urlsafe(9)
+    _sweep()
+    player_id = secrets.token_urlsafe(9)
+    for _ in range(5):
+        code = _new_code(store.codes())
         room = {
             "code": code, "hostId": player_id, "players": {}, "prompts": [],
             "deadline": None, "seq": 0, "events": [], "eventSeq": 0, "emptyAt": None,
@@ -318,12 +338,16 @@ def _host(body):
             # 生成される会話をどちらで書かせるか。建てた人の言語に揃える
             "lang": _clean_lang(body.get("lang")),
         }
-        ROOMS[code] = room
         _add_player(room, player_id, name)
+        # **まだ無いときだけ建てる。** 取られていたら別のコードで引き直す
+        if not store.create(code, room):
+            continue
 
         state = _state(room, player_id)
         state["events"] = []            # 建てた本人に自分の参加は流さない
         return 200, {"playerId": player_id, **state}
+
+    return 503, {"error": "could not allocate a room code"}
 
 
 def _join(body):
@@ -333,8 +357,8 @@ def _join(body):
     if not name:
         return 400, {"error": "name required"}
 
-    with LOCK:
-        room, err = _find(code)
+    with store.room_tx(code) as room:
+        err = _check(room, code)
         if err:
             return err
 
@@ -354,8 +378,8 @@ def _ready(body):
     player_id = str(body.get("playerId") or "")
     since = int(body.get("sinceEvent") or 0)
 
-    with LOCK:
-        room, err = _find(code, player_id)
+    with store.room_tx(code) as room:
+        err = _check(room, code, player_id)
         if err:
             return err
 
@@ -380,8 +404,8 @@ def _force_start(body):
     player_id = str(body.get("playerId") or "")
     since = int(body.get("sinceEvent") or 0)
 
-    with LOCK:
-        room, err = _find(code, player_id)
+    with store.room_tx(code) as room:
+        err = _check(room, code, player_id)
         if err:
             return err
         if player_id != room["hostId"]:
@@ -395,37 +419,31 @@ def _force_start(body):
 
 def _trim_images():
     """
-    畳まれた部屋の背景を消す。**生きている部屋のぶんは残す。**
+    畳まれた部屋の背景を片付ける。**生きている部屋のぶんは残す。**
 
     枚数で切ると、同時にいくつも部屋が動いているときに進行中の部屋の背景まで
     消えてしまう。1部屋で MAX_DAYS 枚使い、しかもエンディングの回想で
     初日ぶんまで見返すので、消えると回想が虫食いになる。
-    生成した絵のファイル名は `<部屋コード>_<連番>.png` なので、頭で見分けられる。
+    生成した絵の名前は `<部屋コード>_<乱数>.png` なので、頭で見分けられる。
+
+    実際に消すかどうかは置き場しだい（tools/images.py）。Blob のときは
+    何もしない — 容量課金で消さなくても困らないうえ、「生きている部屋」の
+    判定を当てにして他人の絵を消すほうが危ないため。
     """
-    with LOCK:
-        live = set(ROOMS)
-    try:
-        names = [n for n in os.listdir(story.OUT_DIR) if n.endswith(".png")]
-    except OSError:
-        return
-    for name in names:
-        if name.split("_", 1)[0] in live:
-            continue
-        try:
-            os.remove(os.path.join(story.OUT_DIR, name))
-        except OSError:
-            pass
+    images.trim(store.codes())
 
 
 def _run_story(code, winner, stem, lang):
-    """別スレッドで OpenAI を叩く。終わったら部屋に書き戻す（10秒以上かかる）"""
-    global STORY_SEQ
+    """
+    OpenAI を叩いて、終わったら部屋に書き戻す（20〜40秒）。
 
+    **鍵を握ったまま待たない。** 生成のあいだは部屋を解放しておくので、
+    他の人のポーリングは止まらず、渦の画面で「作っています」を見ていられる。
+    """
     # 誰も Prompt を出さなかった回。AI に出来事を考えさせて、それをお題にする
     if not winner:
         winner = story.invent_event(lang) or ""
-        with LOCK:
-            room = ROOMS.get(code)
+        with store.room_tx(code) as room:
             if room and room["story"]:
                 room["story"]["winner"] = winner
 
@@ -437,26 +455,22 @@ def _run_story(code, winner, stem, lang):
     # 親密度も日数もこの下で1回だけ足すので、二重に進むことはない。
     # 作り直しは1回だけ（差し替えた先も弾かれたら、絵無しで進める）
     if result.get("blocked"):
-        with LOCK:
-            room = ROOMS.get(code)
+        with store.room_tx(code) as room:
             if not room or not room["story"]:
                 return
             # クライアントはこれを見て「別の出来事を考えています」に切り替える
             room["story"] = {**room["story"], "status": "working", "blocked": True}
 
         winner = story.invent_event(lang) or winner
-        with LOCK:
-            room = ROOMS.get(code)
+        stem = f"{code}_{store.seq()}"
+        with store.room_tx(code) as room:
             if not room or not room["story"]:
                 return
             room["story"] = {**room["story"], "winner": winner}
-            STORY_SEQ += 1
-            stem = f"{code}_{STORY_SEQ}"
 
         result = story.generate(winner, stem, lang)
 
-    with LOCK:
-        room = ROOMS.get(code)
+    with store.room_tx(code) as room:
         if not room or not room["story"]:
             return                       # 部屋が畳まれた / 次の回に入った
 
@@ -488,13 +502,14 @@ def _story(body):
     いちばんいいねが多かった Prompt から次の展開を作る。
     **作るのは部屋につき1回だけ**で、2人目以降は同じものを受け取る。
     """
-    global STORY_SEQ
     code = _clean_code(body.get("code"))
     player_id = str(body.get("playerId") or "")
     since = int(body.get("sinceEvent") or 0)
 
-    with LOCK:
-        room, err = _find(code, player_id)
+    # **先に「作り始めた」印だけ付けて鍵を放す。** 生成は20〜40秒かかるので、
+    # 握ったままだと他の人のポーリングが全部詰まる
+    with store.room_tx(code) as room:
+        err = _check(room, code, player_id)
         if err:
             return err
         _touch(room, player_id)
@@ -513,27 +528,30 @@ def _story(body):
         for p in room["prompts"]:
             room["likes"][p["author"]] = room["likes"].get(p["author"], 0) + p["likes"]
 
-        STORY_SEQ += 1
-        stem = f"{code}_{STORY_SEQ}"
+        stem = f"{code}_{store.seq()}"
+        lang = room["lang"]
         room["story"] = {"status": "working", "winner": winner, "lines": [],
                          "affinity": 0, "bgm": "", "image": None}
 
-        threading.Thread(target=_run_story, args=(code, winner, stem, room["lang"]),
-                         daemon=True).start()
+    # ここから先は鍵を持っていない。作り終えてから改めて書き戻す
+    _run_story(code, winner, stem, lang)
+
+    with store.room_tx(code) as room:
+        err = _check(room, code, player_id)
+        if err:
+            return err
         return 200, _state(room, player_id, since)
 
 
 def _run_finale(code):
-    """別スレッドで 003.txt を投げる。終わったら部屋に書き戻す"""
-    with LOCK:
-        room = ROOMS.get(code)
-        if not room:
-            return
-        history, affinity, lang = list(room["history"]), room["affinity"], room["lang"]
+    """003.txt を投げて、終わったら部屋に書き戻す。**投げているあいだは鍵を放す**"""
+    room = store.load(code)
+    if not room:
+        return
+    history, affinity, lang = list(room["history"]), room["affinity"], room["lang"]
 
     result = story.finale(history, affinity, lang)
-    with LOCK:
-        room = ROOMS.get(code)
+    with store.room_tx(code) as room:
         if not room or not room["finale"]:
             return
         room["finale"] = {
@@ -551,8 +569,8 @@ def _finale(body):
     player_id = str(body.get("playerId") or "")
     since = int(body.get("sinceEvent") or 0)
 
-    with LOCK:
-        room, err = _find(code, player_id)
+    with store.room_tx(code) as room:
+        err = _check(room, code, player_id)
         if err:
             return err
         _touch(room, player_id)
@@ -563,7 +581,13 @@ def _finale(body):
             return 409, {"error": "days are not finished", **_state(room, player_id, since)}
 
         room["finale"] = {"status": "working", "lines": []}
-        threading.Thread(target=_run_finale, args=(code,), daemon=True).start()
+
+    _run_finale(code)
+
+    with store.room_tx(code) as room:
+        err = _check(room, code, player_id)
+        if err:
+            return err
         return 200, _state(room, player_id, since)
 
 
@@ -573,8 +597,8 @@ def _prompt(body):
     raw_text = str(body.get("text") or "").strip()
     since = int(body.get("sinceEvent") or 0)
 
-    with LOCK:
-        room, err = _find(code, player_id)
+    with store.room_tx(code) as room:
+        err = _check(room, code, player_id)
         if err:
             return err
 
@@ -606,8 +630,8 @@ def _like(body):
     prompt_id = str(body.get("promptId") or "")
     since = int(body.get("sinceEvent") or 0)
 
-    with LOCK:
-        room, err = _find(code, player_id)
+    with store.room_tx(code) as room:
+        err = _check(room, code, player_id)
         if err:
             return err
         _touch(room, player_id)
@@ -624,8 +648,26 @@ def _get_state(query):
     player_id = query.get("playerId", [""])[0]
     since = int(query.get("sinceEvent", ["0"])[0] or 0)
 
-    with LOCK:
-        room, err = _find(code)
+    # **見に来るだけの呼び出しは、書く必要が無ければ書かない。**
+    # いちばん回数の多い口なので、ここだけ読み取りで済ませる
+    room = store.load(code)
+    err = _check(room, code)
+    if err:
+        return err
+
+    now = time.time()
+    me = room["players"].get(player_id)
+    needs_write = (
+        # 自分の印がそろそろ古い
+        (me is not None and now - me["seen"] > TOUCH_SECONDS)
+        # 誰かが抜けている。通知を積んで全員に伝えたいので書き戻す
+        or any(now - p["seen"] > IDLE_SECONDS for p in room["players"].values())
+    )
+    if not needs_write:
+        return 200, _state(room, player_id, since)
+
+    with store.room_tx(code) as room:
+        err = _check(room, code)
         if err:
             return err
         _touch(room, player_id)
@@ -646,11 +688,8 @@ def _run_event(code, stem, lang):
     親密度は**最後に1回だけ**足す。1段目で足してしまうと、作り直した回で
     捨てたほうのぶんまで残ってしまう。
     """
-    global STORY_SEQ
-
     made = story.event_text(lang)
-    with LOCK:
-        room = ROOMS.get(code)
+    with store.room_tx(code) as room:
         if not room or not room["event"]:
             return
         if not made.get("lines"):
@@ -663,8 +702,7 @@ def _run_event(code, stem, lang):
 
     # 出来事そのものが描けない回。別の出来事を考えさせて作り直す
     if not drawn.get("image") and story.is_blocked(drawn.get("error")):
-        with LOCK:
-            room = ROOMS.get(code)
+        with store.room_tx(code) as room:
             if not room or not room["event"]:
                 return
             # クライアントはこれを見て「別の出来事を考えています」に切り替える
@@ -673,17 +711,14 @@ def _run_event(code, stem, lang):
         retry = story.event_text(lang)
         if retry.get("lines"):
             made = retry
-            with LOCK:
-                room = ROOMS.get(code)
+            stem = f"{code}_{store.seq()}"
+            with store.room_tx(code) as room:
                 if not room or not room["event"]:
                     return
                 room["event"] = {**room["event"], "image": None, **made, "blocked": True}
-                STORY_SEQ += 1
-                stem = f"{code}_{STORY_SEQ}"
             drawn = story.event_image(made["text"], stem)
 
-    with LOCK:
-        room = ROOMS.get(code)
+    with store.room_tx(code) as room:
         if not room or not room["event"]:
             return
 
@@ -710,13 +745,12 @@ def _random_event(body):
     （通知を積む _event() とは別物。名前が紛らわしいので分けてある）
     **作るのは部屋につき1回だけ**で、2人目以降は同じものを受け取る。
     """
-    global STORY_SEQ
     code = _clean_code(body.get("code"))
     player_id = str(body.get("playerId") or "")
     since = int(body.get("sinceEvent") or 0)
 
-    with LOCK:
-        room, err = _find(code, player_id)
+    with store.room_tx(code) as room:
+        err = _check(room, code, player_id)
         if err:
             return err
         _touch(room, player_id)
@@ -724,14 +758,18 @@ def _random_event(body):
         if room["event"] is not None:
             return 200, _state(room, player_id, since)   # もう誰かが始めている
 
-        # 背景の名前は次の展開と同じ採番にする。_trim_images が
+        # 背景の名前は次の展開と同じ付け方にする。片付け（images.trim）が
         # 部屋コードで生き死にを見分けるので、頭を揃えておく必要がある
-        STORY_SEQ += 1
-        stem = f"{code}_{STORY_SEQ}"
-
+        stem = f"{code}_{store.seq()}"
+        lang = room["lang"]
         room["event"] = {"status": "working", "text": "", "lines": [], "image": None}
-        threading.Thread(target=_run_event, args=(code, stem, room["lang"]),
-                         daemon=True).start()
+
+    _run_event(code, stem, lang)
+
+    with store.room_tx(code) as room:
+        err = _check(room, code, player_id)
+        if err:
+            return err
         return 200, _state(room, player_id, since)
 
 def _run_future(code, stem, lang):
@@ -740,15 +778,13 @@ def _run_future(code, stem, lang):
       1段目 … 3場面の情景と会話（5秒ほど）
       2段目 … 3枚の背景（同時に投げるので15秒ほど）
     """
-    with LOCK:
-        room = ROOMS.get(code)
-        if not room:
-            return
-        history = list(room["history"])
+    room = store.load(code)
+    if not room:
+        return
+    history = list(room["history"])
 
     made = story.future_text(history, lang)
-    with LOCK:
-        room = ROOMS.get(code)
+    with store.room_tx(code) as room:
         if not room or not room["future"]:
             return
         if not made.get("scenes") or made.get("error"):
@@ -758,8 +794,7 @@ def _run_future(code, stem, lang):
         scenes = made["scenes"]
 
     story.future_images(scenes, stem)
-    with LOCK:
-        room = ROOMS.get(code)
+    with store.room_tx(code) as room:
         if not room or not room["future"]:
             return
         room["future"] = {"status": "ready", "scenes": scenes, "error": None}
@@ -771,13 +806,12 @@ def _future(body):
     親密度が満タンで迎えた締め用に、10年後・20年後・30年後を作る。
     **作るのは部屋につき1回だけ**で、2人目以降は同じものを受け取る。
     """
-    global STORY_SEQ
     code = _clean_code(body.get("code"))
     player_id = str(body.get("playerId") or "")
     since = int(body.get("sinceEvent") or 0)
 
-    with LOCK:
-        room, err = _find(code, player_id)
+    with store.room_tx(code) as room:
+        err = _check(room, code, player_id)
         if err:
             return err
         _touch(room, player_id)
@@ -785,11 +819,16 @@ def _future(body):
         if room["future"] is not None:
             return 200, _state(room, player_id, since)   # もう誰かが始めている
 
-        STORY_SEQ += 1
-        stem = f"{code}_{STORY_SEQ}"
+        stem = f"{code}_{store.seq()}"
+        lang = room["lang"]
         room["future"] = {"status": "working", "scenes": [], "error": None}
-        threading.Thread(target=_run_future, args=(code, stem, room["lang"]),
-                         daemon=True).start()
+
+    _run_future(code, stem, lang)
+
+    with store.room_tx(code) as room:
+        err = _check(room, code, player_id)
+        if err:
+            return err
         return 200, _state(room, player_id, since)
 
 ROUTES = {

@@ -1,16 +1,14 @@
-# Vercel は置いたものを丸ごと静的配信する。**サーバーは Vercel に載らない**
-# （部屋の状態がプロセス内メモリにあるため / 詳しくは render.yaml）。
-# ここでは画面の素材だけを上げ、それ以外は上げない。
-# /api と /assets/generated は vercel.json で Render へ転送している。
+# Vercel に上げないもの。
+#
+# **サーバーは api/ の下、画面と素材はそれ以外。**
+# Vercel は api/ 以外を丸ごと静的配信するので、上げたものはそのまま
+# 誰でも読める。実行時に読まれないものは上げない — リポジトリは 582MB あり、
+# そのほとんどが元素材だから。
 
-# --- サーバー本体。置くと中身がそのまま読めてしまう ---
+# --- Render 専用。Vercel では api/index.py が入口になる ---
 tools/
 render.yaml
-requirements.txt
 .env
-
-# --- お題の指示文。サーバーだけが読む（Vercel 側では誰も使わない） ---
-assets/Prompt/
 
 # --- 資料。実行時には読まれない ---
 assets/reference_image/
@@ -27,5 +25,5 @@ assets/Martin/*
 assets/Catherine/*
 !assets/Catherine/future
 
-# --- 生成された背景。Render のディスクにあるものを転送して使う ---
+# --- 生成された背景。Blob に置くので上げる必要が無い ---
 assets/generated/

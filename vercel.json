@@ -1,15 +1,14 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "cleanUrls": false,
-  "rewrites": [
-    {
-      "source": "/api/:path*",
-      "destination": "https://makethemfallinlove.onrender.com/api/:path*"
-    },
-    {
-      "source": "/assets/generated/:path*",
-      "destination": "https://makethemfallinlove.onrender.com/assets/generated/:path*"
+  "functions": {
+    "api/index.py": {
+      "memory": 1024,
+      "maxDuration": 300,
+      "excludeFiles": "{assets/**,src/**,tools/**,index.html,manifest.webmanifest}"
     }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api?__p=$1" }
   ],
   "headers": [
     {
