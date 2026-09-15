@@ -64,14 +64,29 @@ def _env(*names):
     return ""
 
 
-#: Vercel の Marketplace から挿すと KV_REST_API_* で入る。
-#: Upstash を直接使うと UPSTASH_REDIS_REST_* になる。両方見る
-REDIS_URL = _env("KV_REST_API_URL", "UPSTASH_REDIS_REST_URL", "REDIS_REST_URL")
-REDIS_TOKEN = _env("KV_REST_API_TOKEN", "UPSTASH_REDIS_REST_TOKEN", "REDIS_REST_TOKEN")
+#: 繋ぎ方は2通りあり、**入っている環境変数で自動的に決まる。**
+#:
+#:   1. 接続 URL（redis://…）… Vercel の Marketplace の Redis がこれ。
+#:      普通の Redis 接続なので redis パッケージを使う
+#:   2. REST（URL + トークン）… Upstash を直接使うときはこれ。
+#:      HTTP なので urllib だけで足り、パッケージが要らない
+#:
+#: どちらでも動くようにしてあるのは、途中で乗り換えても
+#: コードを書き直さずに済ませるため
+REDIS_CONN_URL = _env("REDIS_URL", "REDIS_CLOUD_URL", "KV_URL")
+REDIS_REST_URL = _env("KV_REST_API_URL", "UPSTASH_REDIS_REST_URL", "REDIS_REST_URL")
+REDIS_REST_TOKEN = _env("KV_REST_API_TOKEN", "UPSTASH_REDIS_REST_TOKEN", "REDIS_REST_TOKEN")
 
-#: Redis を使うか。**環境変数が揃っているときだけ。**
+#: どれを使うか。**環境変数が揃っているときだけ Redis。**
 #: 揃っていなければ今までどおりメモリで動く（Render と手元がこちら）
-USE_REDIS = bool(REDIS_URL and REDIS_TOKEN)
+if REDIS_CONN_URL:
+    MODE = "redis"
+elif REDIS_REST_URL and REDIS_REST_TOKEN:
+    MODE = "redis-rest"
+else:
+    MODE = "memory"
+
+USE_REDIS = MODE != "memory"
 
 
 # ---------------------------------------------------------------
@@ -114,28 +129,16 @@ class _Memory:
 #  Redis（Vercel）
 # ---------------------------------------------------------------
 
-class _Redis:
+class _RedisBase:
     """
-    Upstash の REST API を urllib で叩く。
+    Redis を使うときの中身。**繋ぎ方（_call）だけを差し替えて使い回す。**
 
-    **ライブラリを足さない。** このゲームは標準ライブラリだけで動くのが
-    取り柄で、依存を1つ増やすと Vercel の関数の大きさにも効いてくる。
-    REST なので接続の使い回しも要らず、サーバーレスとの相性もよい。
+    扱うのは GET / SET / DEL / KEYS / EVAL の5つだけなので、
+    どちらの繋ぎ方でも同じ手順が書ける。
     """
 
     def _call(self, *command):
-        body = json.dumps([str(c) for c in command]).encode("utf-8")
-        req = urllib.request.Request(
-            REDIS_URL,
-            data=body,
-            headers={
-                "Authorization": f"Bearer {REDIS_TOKEN}",
-                "Content-Type": "application/json",
-            },
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=10) as res:
-            return json.load(res).get("result")
+        raise NotImplementedError
 
     def load(self, code):
         raw = self._call("GET", PREFIX + code)
@@ -186,7 +189,59 @@ class _Redis:
                 )
 
 
-_backend = _Redis() if USE_REDIS else _Memory()
+class _RedisRest(_RedisBase):
+    """Upstash の REST API を urllib で叩く。パッケージが要らない"""
+
+    def _call(self, *command):
+        body = json.dumps([str(c) for c in command]).encode("utf-8")
+        req = urllib.request.Request(
+            REDIS_REST_URL,
+            data=body,
+            headers={
+                "Authorization": f"Bearer {REDIS_REST_TOKEN}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=10) as res:
+            return json.load(res).get("result")
+
+
+class _RedisConn(_RedisBase):
+    """
+    普通の Redis 接続。Vercel の Marketplace の Redis がこれ。
+
+    **繋ぎ口はモジュールに1つだけ持つ。** Fluid compute は同じインスタンスで
+    続けて呼ばれるので、毎回つなぎ直さずに済み、そのぶん速い。
+    """
+
+    def __init__(self):
+        import redis  # ここでだけ要る。REST のときは読み込まない
+        self._client = redis.Redis.from_url(
+            REDIS_CONN_URL,
+            decode_responses=True,     # 文字列で受け取る。JSON をそのまま入れるため
+            socket_timeout=10,
+            socket_connect_timeout=10,
+            health_check_interval=30,  # 寝ていた接続を掴んだときに繋ぎ直させる
+        )
+
+    def _call(self, *command):
+        if command[0] == "EVAL":
+            # EVAL は引数の形が特殊（script, 鍵の数, 鍵…, 値…）
+            script, numkeys, *rest = command[1:]
+            return self._client.eval(script, int(numkeys), *rest)
+        return self._client.execute_command(*command)
+
+
+def _make_backend():
+    if MODE == "redis":
+        return _RedisConn()
+    if MODE == "redis-rest":
+        return _RedisRest()
+    return _Memory()
+
+
+_backend = _make_backend()
 
 
 # ---------------------------------------------------------------
@@ -194,8 +249,8 @@ _backend = _Redis() if USE_REDIS else _Memory()
 # ---------------------------------------------------------------
 
 def where():
-    """いまどちらで動いているか。起動時のログ用"""
-    return "redis" if USE_REDIS else "memory"
+    """いまどれで動いているか。起動時のログ用"""
+    return MODE
 
 
 def load(code):

@@ -1,8 +1,8 @@
-# 依存ライブラリは無い。
+# Redis に普通の接続（redis://…）で繋ぐときだけ要る。
 #
-# tools/ は標準ライブラリだけで動く。Redis も Vercel Blob も
-# REST API を urllib で叩いているので、パッケージを足していない
-# （tools/store.py / tools/images.py 参照）。
+# Vercel の Marketplace の Redis がこの形。Upstash を REST で使う場合や、
+# 手元・Render でメモリに置く場合は読み込まれない（api/_lib/store.py の
+# _RedisConn だけが import する）。
 #
-# このファイルが空でも置いてあるのは、Vercel に Python の
-# プロジェクトだと伝えるため。
+# 版を固定しているのは、デプロイのたびに中身が変わらないようにするため。
+redis==5.2.1
