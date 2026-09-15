@@ -194,11 +194,18 @@ def _prune(room):
 
 
 def _sweep():
-    """空になった部屋を畳む。部屋を建てるときに1度だけ回す"""
+    """
+    空になった部屋を畳む。部屋を建てるときに1度だけ回す。
+
+    **形の違うものが混ざっていても進む。** 外部のストアには、古い版が
+    書いたものや途中で壊れたものが残りうる。ここで例外を出すと
+    「誰も部屋を建てられない」という致命的な止まり方をするので、
+    読めないものは黙って飛ばす（期限つきなので放っておけば消える）。
+    """
     now = time.time()
     for code in store.codes():
         with store.room_tx(code) as room:
-            if room is None:
+            if not isinstance(room, dict) or "players" not in room:
                 continue
             if room["players"]:
                 room["emptyAt"] = None

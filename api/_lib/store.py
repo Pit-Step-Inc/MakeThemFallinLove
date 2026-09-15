@@ -129,6 +129,17 @@ class _Memory:
 #  Redis（Vercel）
 # ---------------------------------------------------------------
 
+def _ok(reply):
+    """
+    SET が通ったか。
+
+    **繋ぎ方で返り方が違う。** REST は文字列 "OK"、redis パッケージは True を返す
+    （NX で弾かれたときはどちらも None）。ここを "OK" だけで見ていて、
+    Marketplace の Redis に繋いだ瞬間に部屋が1つも建てられなくなった。
+    """
+    return reply is True or reply == "OK" or reply == b"OK"
+
+
 class _RedisBase:
     """
     Redis を使うときの中身。**繋ぎ方（_call）だけを差し替えて使い回す。**
@@ -150,8 +161,8 @@ class _RedisBase:
 
     def create(self, code, room):
         # NX なので、既にあれば何もせず None が返る
-        return self._call("SET", PREFIX + code, json.dumps(room, ensure_ascii=False),
-                          "NX", "EX", TTL_SECONDS) == "OK"
+        return _ok(self._call("SET", PREFIX + code, json.dumps(room, ensure_ascii=False),
+                              "NX", "EX", TTL_SECONDS))
 
     def delete(self, code):
         self._call("DEL", PREFIX + code)
@@ -167,7 +178,7 @@ class _RedisBase:
         token = secrets.token_hex(8)
         limit = time.time() + LOCK_WAIT_SECONDS
         while True:
-            if self._call("SET", key, token, "NX", "PX", LOCK_TTL_MS) == "OK":
+            if _ok(self._call("SET", key, token, "NX", "PX", LOCK_TTL_MS)):
                 break
             if time.time() > limit:
                 # 握れないまま進む。**止めるよりは進めた**ほうがマシ。
