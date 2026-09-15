@@ -47,7 +47,7 @@ const OPENING_BACKDROPS = [
  * Prompt 入力に入る。
  */
 const EVENT_DAYS = [2];
-const EVENT_MIN_MS = 5000;
+const EVENT_MIN_MS = 3500;
 
 /** その日のイベントをまだ見せていないか。冒頭の会話の行き先を分ける */
 let eventPending = false;
@@ -603,12 +603,18 @@ async function playEvent() {
   sfx.loop("siren");                 // 出来事が決まるまで鳴らしっぱなし
   const eventIntroDone = new Promise((resolve) => setTimeout(resolve, EVENT_MIN_MS));
 
-  // 1段目。text が埋まった時点で status はまだ working（絵がこれから）
-  let state = await room.event();
-  for (let i = 0; i < 80 && !state?.event?.text && state?.event?.status === "working"; i += 1) {
+  // 1段目。Host の event リクエストは画像生成まで返らない環境があるので、
+  // 待たずに走らせ、Join 側と同じく state の途中経過を見て進める。
+  const eventRequest = room.event().catch((err) => {
+    console.error("[event] request failed:", err);
+    return null;
+  });
+  let state = await room.state();
+  for (let i = 0; i < 80 && !state?.event?.text && state?.event?.status !== "error"; i += 1) {
     await new Promise((r) => setTimeout(r, 500));
     state = await room.state();
   }
+  if (!state?.event?.text) state = await eventRequest;
   await eventIntroDone;
   sfx.stopLoop("siren");
 
