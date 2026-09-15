@@ -7,6 +7,50 @@ You can play the project here:
 - Vercel: https://make-them-fall-in-love001.vercel.app
 - Render: https://make-them-fall.onrender.com
 
+## How To Play / 操作方法
+
+1. 最初に言語を選択します。
+
+![Language select](docs/play-guide/001_RE.png)
+
+2. 自分が Host になるか、共有されたルームコードを入力してゲームに参加します。
+
+![Host or join](docs/play-guide/002_RE.png)
+
+![Room code](docs/play-guide/003_RE.png)
+
+3. Martin と Catherine のデートが始まります。
+
+![Opening scene](docs/play-guide/004_RE.png)
+
+4. Prompt 入力画面になったら、Martin にしてほしい行動やアドバイスを入力します。入力した Prompt は画面上部に表示されます。
+
+![Prompt input](docs/play-guide/005_RE.png)
+
+![Submitted prompts](docs/play-guide/006_RE.png)
+
+5. 良いと思った Prompt にいいねします。もっとも多くいいねされた Prompt が採用されます。
+
+![Like prompts](docs/play-guide/007_RE.png)
+
+6. 採用された Prompt をもとに、AI が次のストーリーを生成します。
+
+![Selected prompt](docs/play-guide/008_RE.png)
+
+![Generated story](docs/play-guide/009_RE.png)
+
+7. ストーリーの内容によって、Catherine の親密度が変化します。
+
+![Affection change](docs/play-guide/010_RE.png)
+
+8. デート中には、ランダムイベントが発生することがあります。
+
+![Random event](docs/play-guide/011_RE.png)
+
+9. 最終的なゴールは、Catherine の親密度を 100 にすることです。親密度が 100 になると特殊な演出を見ることができます。100 に届くまで、何度もプレイして Martin の恋を成功させてください。
+
+![Goal](docs/play-guide/012_RE.png)
+
 ## Game Overview
 
 What if you could step into a dating reality show and change what happens next? MAKE THEM FALL (in love) is an AI-powered multiplayer dating simulation where players influence Martin, an awkward and inexperienced guy, as he tries to win - or completely ruin - his date with Catherine.
