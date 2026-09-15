@@ -1,5 +1,12 @@
 # MAKE THEM FALL (in love)
 
+## Play
+
+You can play the project here:
+
+- Vercel: https://make-them-fall-in-love001.vercel.app
+- Render: https://make-them-fall.onrender.com
+
 ## Game Overview
 
 What if you could step into a dating reality show and change what happens next? MAKE THEM FALL (in love) is an AI-powered multiplayer dating simulation where players influence Martin, an awkward and inexperienced guy, as he tries to win - or completely ruin - his date with Catherine.
