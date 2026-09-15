@@ -29,27 +29,27 @@ You can play the project here:
 
 ![Submitted prompts](docs/play-guide/006_RE.png)
 
-5. Like the prompts you think are best. The prompt with the most likes is selected.
+5. Like the prompts you think are best. The prompt with the most likes is selected, and AI uses it to generate the next story scene.
 
-![Like prompts](docs/play-guide/007_RE.png)
+6. Random events may happen during the date. When an event appears, AI generates a new "What happens next?" scene for that situation.
 
-6. AI generates the next story scene from the selected prompt.
+![Random event](docs/play-guide/009_RE.png)
 
-![Selected prompt](docs/play-guide/008_RE.png)
+![Event prompt](docs/play-guide/010_RE.png)
 
-![Generated story](docs/play-guide/009_RE.png)
+7. The event scene plays out through Martin and Catherine's dialogue.
 
-7. Catherine's affection changes depending on what happens in the story.
+![Event scene](docs/play-guide/007_RE.png)
 
-![Affection change](docs/play-guide/010_RE.png)
+8. Catherine's affection changes depending on what happens in the story.
 
-8. Random events may happen during the date.
-
-![Random event](docs/play-guide/011_RE.png)
+![Affection change](docs/play-guide/008_RE.png)
 
 9. Your goal is to raise Catherine's affection to 100. Reaching 100 unlocks a special ending sequence, so keep playing until Martin wins Catherine's heart.
 
-![Goal](docs/play-guide/012_RE.png)
+![Final affinity](docs/play-guide/011_RE.png)
+
+![Goal reminder](docs/play-guide/012_RE.png)
 
 ## Game Overview
 
